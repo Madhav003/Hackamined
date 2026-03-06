@@ -2206,5 +2206,53 @@
     "details": "Threat level: MEDIUM (score: 22.05)",
     "prev_hash": "9b8a0e0a8c8f1864880b16e813e2f616bb93a014581467217769d14e30177608",
     "entry_hash": "464f9993a411f44ef4888dd141902d1bf99c6f9a169b30b161601558480d90ba"
+  },
+  {
+    "timestamp": "2026-03-06T15:31:42.716562+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: uje2fBTesXVfibf6IJ2v_operational_archive_dump.sql",
+    "prev_hash": "464f9993a411f44ef4888dd141902d1bf99c6f9a169b30b161601558480d90ba",
+    "entry_hash": "5da4cd6747a2664ead41b159fd5a4615db7e9fb02966f248c163be67da05ac61"
+  },
+  {
+    "timestamp": "2026-03-06T15:31:57.706849+00:00",
+    "user": "admin",
+    "action": "SQL_SANITIZE",
+    "details": "Sanitized SQL dump: uje2fBTesXVfibf6IJ2v_operational_archive_dump.sql \u2192 uje2fBTesXVfibf6IJ2v_operational_archive_dump_sanitized.sql",
+    "prev_hash": "5da4cd6747a2664ead41b159fd5a4615db7e9fb02966f248c163be67da05ac61",
+    "entry_hash": "63ef57b4710f85844943599322657da99644ae13ba6335b4d6dbdc176fca32cf"
+  },
+  {
+    "timestamp": "2026-03-06T15:31:57.718064+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "SQL threat level: CRITICAL",
+    "prev_hash": "63ef57b4710f85844943599322657da99644ae13ba6335b4d6dbdc176fca32cf",
+    "entry_hash": "0fc9fcf754609ee4d1a1f5cf3d8167ae86fb500ef33756cc4e9db35ad628e632"
+  },
+  {
+    "timestamp": "2026-03-06T17:12:44.908648+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: WWKkWd4DMKKS0LSVGNji_operational_archive_dump.sql",
+    "prev_hash": "0fc9fcf754609ee4d1a1f5cf3d8167ae86fb500ef33756cc4e9db35ad628e632",
+    "entry_hash": "7d51ecd9b103b53081b16a989bcbd429b036e21ca67c240b303bf5621df234e0"
+  },
+  {
+    "timestamp": "2026-03-06T17:12:59.437625+00:00",
+    "user": "admin",
+    "action": "SQL_SANITIZE",
+    "details": "Sanitized SQL dump: WWKkWd4DMKKS0LSVGNji_operational_archive_dump.sql \u2192 WWKkWd4DMKKS0LSVGNji_operational_archive_dump_sanitized.sql",
+    "prev_hash": "7d51ecd9b103b53081b16a989bcbd429b036e21ca67c240b303bf5621df234e0",
+    "entry_hash": "741cc324a896e28d4377554d2826b9d4b04aef4f4ff2f0bb0b84b695c686cc80"
+  },
+  {
+    "timestamp": "2026-03-06T17:12:59.450903+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "SQL threat level: CRITICAL",
+    "prev_hash": "741cc324a896e28d4377554d2826b9d4b04aef4f4ff2f0bb0b84b695c686cc80",
+    "entry_hash": "5153c3f44902c3f0bfcbf2b72e0fbc96cb560b33f930f06170a4488acdc92a8f"
   }
 ]

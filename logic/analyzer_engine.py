@@ -52,14 +52,11 @@ def create_anonymizer() -> AnonymizerEngine:
 
 DEFAULT_OPERATORS = {
     "PERSON":        OperatorConfig("replace", {"new_value": "[REDACTED_NAME]"}),
-    "EMAIL_ADDRESS": OperatorConfig("mask",    {"type": "mask", "masking_char": "*",
-                                                "chars_to_mask": 6, "from_end": False}),
-    "PHONE_NUMBER":  OperatorConfig("mask",    {"type": "mask", "masking_char": "X",
-                                                "chars_to_mask": 6, "from_end": False}),
+    "EMAIL_ADDRESS": OperatorConfig("replace", {"new_value": "[REDACTED_EMAIL]"}),
+    "PHONE_NUMBER":  OperatorConfig("replace", {"new_value": "[REDACTED_PHONE]"}),
     "CREDIT_CARD":   OperatorConfig("mask",    {"type": "mask", "masking_char": "X",
                                                 "chars_to_mask": 12, "from_end": False}),
-    "IN_AADHAAR":    OperatorConfig("mask",    {"type": "mask", "masking_char": "X",
-                                                "chars_to_mask": 8, "from_end": False}),
+    "IN_AADHAAR":    OperatorConfig("replace", {"new_value": "[REDACTED_AADHAAR]"}),
     "IN_PAN":        OperatorConfig("replace", {"new_value": "[REDACTED_PAN]"}),
     "US_SSN":        OperatorConfig("replace", {"new_value": "[REDACTED_SSN]"}),
     "IP_ADDRESS":    OperatorConfig("replace", {"new_value": "[REDACTED_IP]"}),
