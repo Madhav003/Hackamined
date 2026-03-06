@@ -182,6 +182,7 @@
             const [fileTypes, setFileTypes] = useState([]);
             const [sanitization, setSanitization] = useState({ success: 0, failed: 0, pending: 0 });
             const [activity, setActivity] = useState([]);
+            const [piiBreakdown, setPiiBreakdown] = useState({});
 
             // Auth guard + fetch data
             React.useEffect(() => {
@@ -200,7 +201,23 @@
                             const total = files.length;
                             const completed = files.filter(f => f.status === 'completed').length;
                             const processing = files.filter(f => f.status === 'uploaded' || f.status === 'processing').length;
-                            setStats({ totalUploaded: total, totalScanned: completed + processing, totalSanitized: completed, totalPII: 0 });
+
+                            // Aggregate PII entities from scan results
+                            let totalPII = 0;
+                            const piiTypeCounts = {};
+                            files.forEach(f => {
+                                if (f.scanResults) {
+                                    totalPII += f.scanResults.entity_count || 0;
+                                    if (f.scanResults.entity_breakdown) {
+                                        Object.entries(f.scanResults.entity_breakdown).forEach(([type, count]) => {
+                                            piiTypeCounts[type] = (piiTypeCounts[type] || 0) + count;
+                                        });
+                                    }
+                                }
+                            });
+
+                            setPiiBreakdown(piiTypeCounts);
+                            setStats({ totalUploaded: total, totalScanned: completed + processing, totalSanitized: completed, totalPII: totalPII });
                             setSanitization({ success: completed, failed: 0, pending: processing });
 
                             // File types breakdown
@@ -220,7 +237,8 @@
                                 const t = f.uploadTime.toDate ? f.uploadTime.toDate() : new Date(f.uploadTime);
                                 const ext = f.fileName.split('.').pop().toUpperCase();
                                 const st = f.status === 'completed' ? 'Sanitized' : f.status === 'processing' ? 'Processing' : 'Pending';
-                                return { id: i, fileName: f.fileName, uploadedBy: f.uploadedBy || 'Unknown', fileType: ext, pii: 0, status: st, date: t.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) };
+                                const piiCount = f.scanResults ? f.scanResults.entity_count : 0;
+                                return { id: i, fileName: f.fileName, uploadedBy: f.uploadedBy || 'Unknown', fileType: ext, pii: piiCount, status: st, date: t.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) };
                             }));
                         });
                     });
@@ -255,10 +273,13 @@
             };
             const lineOptions = { scales: { x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 11 } } }, y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Inter', size: 11 } } } } };
 
-            const piiColors = ['#1E3A8A', '#06B6D4', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981'];
+            const piiColors = ['#1E3A8A', '#06B6D4', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981', '#EC4899', '#6366F1', '#14B8A6', '#F97316'];
+
+            // Build PII doughnut from real aggregated data
+            const piiEntries = Object.entries(piiBreakdown).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
             const doughnutData = {
-                labels: ['Names', 'Emails', 'Phones', 'Addresses', 'IDs', 'DOB'],
-                datasets: [{ data: [0, 0, 0, 0, 0, 0], backgroundColor: piiColors, borderWidth: 0, hoverOffset: 12 }]
+                labels: piiEntries.length > 0 ? piiEntries.map(([k]) => k) : ['No Data'],
+                datasets: [{ data: piiEntries.length > 0 ? piiEntries.map(([, v]) => v) : [1], backgroundColor: piiEntries.length > 0 ? piiColors.slice(0, piiEntries.length) : ['#E2E8F0'], borderWidth: 0, hoverOffset: 12 }]
             };
 
             const barColors = ['#10B981', '#EF4444', '#3B82F6', '#F59E0B', '#1E3A8A', '#8B5CF6', '#94A3B8'];

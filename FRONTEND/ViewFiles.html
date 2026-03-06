@@ -96,6 +96,11 @@
     <script type="text/babel">
         const { useState, useMemo } = React;
 
+        // Helper to decode base64 file content
+        const decodeFileData = (fileData) => {
+            try { const parts = fileData.split(','); return atob(parts[1] || parts[0]); } catch(e) { return 'Unable to decode file content.'; }
+        };
+
         // ==================== ICONS ====================
         const Icons = {
             LayoutDashboard: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>,
@@ -143,6 +148,8 @@
             const [filterType, setFilterType] = useState('All');
             const [filterStatus, setFilterStatus] = useState('All');
             const [currentPage, setCurrentPage] = useState(1);
+            const [viewFile, setViewFile] = useState(null); // file to view in modal
+            const [viewTab, setViewTab] = useState('original'); // 'original' | 'sanitized'
 
             // Auth guard + real-time files listener
             React.useEffect(() => {
@@ -164,14 +171,24 @@
                                 return { id: d.id, ...data, fileType: ext, uploadDate: t.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) };
                             });
                             setOriginalFiles(all.map(f => ({
-                                id: f.id, fileName: f.fileName, uploadedBy: f.uploadedBy || 'Unknown', fileType: f.fileType,
-                                uploadDate: f.uploadDate, scanStatus: f.status === 'completed' ? 'Scanned' : f.status === 'processing' ? 'Scanned' : 'Pending Scan', piiDetected: 0,
-                                downloadURL: f.originalFileURL || '#'
+                                id: f.id, fileName: f.fileName, uploadedBy: f.uploadedBy || 'Unknown', fileType: f.fileType || f.fileName.split('.').pop().toUpperCase(),
+                                uploadDate: f.uploadDate,
+                                scanStatus: f.status === 'completed' ? 'Scanned' : f.status === 'processing' ? 'Scanned' : f.status === 'error' ? 'Failed' : 'Pending Scan',
+                                piiDetected: f.scanResults ? f.scanResults.entity_count : 0,
+                                threatLevel: f.scanResults ? f.scanResults.threat_level : null,
+                                downloadURL: f.originalFileURL || '#',
+                                fileData: f.fileData || null,
+                                scanResults: f.scanResults || null
                             })));
                             setSanitizedFiles(all.filter(f => f.status === 'completed').map(f => ({
                                 id: f.id, fileName: f.fileName.replace(/\./, '_sanitized.'), originalFile: f.fileName,
-                                sanitizedDate: f.uploadDate, piiRemoved: 0, status: 'Completed',
-                                downloadURL: f.sanitizedFileURL || f.originalFileURL || '#'
+                                sanitizedDate: f.uploadDate,
+                                fileType: f.fileType || f.fileName.split('.').pop().toUpperCase(),
+                                piiRemoved: f.scanResults ? f.scanResults.entity_count : 0,
+                                status: 'Completed',
+                                downloadURL: f.sanitizedFileURL || f.originalFileURL || '#',
+                                fileData: f.fileData || null,
+                                scanResults: f.scanResults || null
                             })));
                         });
                     });
@@ -279,9 +296,10 @@
                         <div className="flex-1 overflow-y-auto p-6 lg:p-10 pb-24 relative z-0">
                             <div className="max-w-7xl mx-auto space-y-8">
 
-                                <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start space-x-3 shadow-sm">
-                                    <div className="text-amber-500 mt-0.5 shrink-0"><svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
-                                    <div><h3 className="text-sm font-bold text-amber-800">Demo Mode</h3><p className="text-xs text-amber-700 mt-0.5">Showing sample data. Connect Firebase for real-time files.</p></div>
+                                {/* Connected to AI Engine */}
+                                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-start space-x-3 shadow-sm">
+                                    <div className="text-emerald-500 mt-0.5 shrink-0"><svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+                                    <div><h3 className="text-sm font-bold text-emerald-800">AI Engine Connected</h3><p className="text-xs text-emerald-700 mt-0.5">PII scan results are showing real AI analysis data from the pipeline.</p></div>
                                 </div>
 
                                 {/* Header */}
@@ -399,8 +417,8 @@
                                                                     </td>
                                                                     <td className="p-4 pr-6 text-right">
                                                                         <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                            <button title="View File" className="p-1.5 text-slate-400 hover:text-deepblue hover:bg-blue-50 rounded-lg transition-colors"><Icons.EyeSm /></button>
-                                                                            <button title="Scan Details" className="p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"><Icons.Info /></button>
+                                                                            <button onClick={() => { setViewTab('original'); setViewFile(file); }} title="View File" className="p-1.5 text-slate-400 hover:text-deepblue hover:bg-blue-50 rounded-lg transition-colors"><Icons.EyeSm /></button>
+                                                                            {file.scanResults && <button onClick={() => { setViewTab('sanitized'); setViewFile(file); }} title="View Sanitized" className="p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"><Icons.Info /></button>}
                                                                         </div>
                                                                     </td>
                                                                 </tr>
@@ -432,8 +450,8 @@
                                                                     </td>
                                                                     <td className="p-4 pr-6 text-right">
                                                                         <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                            <button title="View File" className="p-1.5 text-slate-400 hover:text-deepblue hover:bg-blue-50 rounded-lg transition-colors"><Icons.EyeSm /></button>
-                                                                            <button title="Scan Details" className="p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"><Icons.Info /></button>
+                                                                            <button onClick={() => { setViewTab('sanitized'); setViewFile(file); }} title="View Sanitized File" className="p-1.5 text-slate-400 hover:text-deepblue hover:bg-blue-50 rounded-lg transition-colors"><Icons.EyeSm /></button>
+                                                                            <button onClick={() => { setViewTab('original'); setViewFile(file); }} title="View Original" className="p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"><Icons.Info /></button>
                                                                         </div>
                                                                     </td>
                                                                 </tr>
@@ -461,6 +479,70 @@
                             </div>
                         </div>
                     </main>
+
+                    {/* ===== VIEW FILE CONTENT MODAL ===== */}
+                    {viewFile && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setViewFile(null)}></div>
+                            <div className="relative bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+                                {/* Modal Header */}
+                                <div className="bg-gradient-to-r from-deepblue to-cyan-600 p-6 text-white relative overflow-hidden shrink-0">
+                                    <div className="absolute -top-8 -right-8 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+                                    <div className="flex justify-between items-start relative z-10">
+                                        <div>
+                                            <h2 className="text-xl font-extrabold tracking-tight">File Content Viewer</h2>
+                                            <p className="text-cyan-100 text-sm mt-1 font-medium">{viewFile.originalFile || viewFile.fileName}</p>
+                                        </div>
+                                        <button onClick={() => setViewFile(null)} className="text-white/80 hover:text-white text-2xl font-bold transition-colors">&times;</button>
+                                    </div>
+                                    <div className="mt-3 flex items-center gap-3">
+                                        <span className={`px-3 py-1 rounded-lg text-[11px] font-bold ${fileTypeColors[viewFile.fileType] || 'bg-slate-100 text-slate-500'}`}>{viewFile.fileType}</span>
+                                        {viewFile.scanResults && viewFile.scanResults.entity_count > 0 && (
+                                            <span className="text-cyan-100 text-sm">PII Entities: <span className="font-bold text-white">{viewFile.scanResults.entity_count}</span></span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Tab Toggle */}
+                                <div className="flex border-b border-slate-200 bg-slate-50 px-6 pt-3">
+                                    <button onClick={() => setViewTab('original')} className={`px-4 py-2.5 text-xs font-bold rounded-t-lg transition-all ${viewTab === 'original' ? 'bg-white text-deepblue border border-slate-200 border-b-white -mb-[1px] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Original Content</button>
+                                    <button onClick={() => setViewTab('sanitized')} className={`px-4 py-2.5 text-xs font-bold rounded-t-lg transition-all ${viewTab === 'sanitized' ? 'bg-white text-emerald-700 border border-slate-200 border-b-white -mb-[1px] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Sanitized Content</button>
+                                </div>
+
+                                {/* Modal Body */}
+                                <div className="flex-1 overflow-y-auto p-6">
+                                    {viewTab === 'original' ? (
+                                        <div>
+                                            <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                                <span className="w-1 h-5 bg-blue-500 rounded-full"></span>
+                                                Original File Content
+                                            </h3>
+                                            <div className="bg-slate-900 text-blue-300 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[50vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">
+                                                {viewFile.fileData ? decodeFileData(viewFile.fileData) : 'Original file data not available.'}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                                <span className="w-1 h-5 bg-emerald-500 rounded-full"></span>
+                                                Sanitized Output (PII Removed)
+                                            </h3>
+                                            <div className="bg-slate-900 text-green-400 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[50vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">
+                                                {viewFile.scanResults && viewFile.scanResults.masked_text ? viewFile.scanResults.masked_text : 'Sanitized content not available. File may not have been scanned yet.'}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Modal Footer */}
+                                <div className="border-t border-slate-200 p-4 flex justify-end shrink-0 bg-slate-50">
+                                    <button onClick={() => setViewFile(null)} className="px-6 py-2.5 bg-gradient-to-r from-deepblue to-cyan-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all text-sm">
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };

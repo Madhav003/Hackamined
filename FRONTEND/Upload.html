@@ -164,6 +164,18 @@
             const [uploadingFiles, setUploadingFiles] = useState([]);
             const [queueFiles, setQueueFiles] = useState([]);
             const [uploadError, setUploadError] = useState('');
+            const [scanResults, setScanResults] = useState({}); // docId -> result
+            const [viewingResult, setViewingResult] = useState(null); // result to show in modal
+            const [selectedFileType, setSelectedFileType] = useState('ALL'); // file type filter
+            const [modalTab, setModalTab] = useState('sanitized'); // 'original' | 'sanitized'
+            const AI_API_URL = 'http://localhost:5000/api/scan';
+
+            const fileTypeExtMap = {
+                'ALL': '.sql,.pdf,.docx,.csv,.json,.txt,.png,.jpg,.jpeg,.xlsx',
+                'SQL': '.sql', 'PDF': '.pdf', 'DOCX': '.docx', 'CSV': '.csv',
+                'JSON': '.json', 'TXT': '.txt', 'XLSX': '.xlsx',
+                'PNG': '.png', 'JPG': '.jpg,.jpeg', 'IMAGE': '.png,.jpg,.jpeg'
+            };
 
             const allowedExts = ['.sql', '.pdf', '.docx', '.csv', '.json', '.txt', '.png', '.jpg', '.jpeg', '.xlsx'];
 
@@ -191,7 +203,11 @@
                                         fileType: data.fileName.split('.').pop().toUpperCase(),
                                         fileSize: formatBytes(data.fileSize || 0),
                                         uploadTime: t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                                        scanStatus: data.status === 'completed' ? 'Completed' : data.status === 'processing' ? 'Scanning' : 'Pending',
+                                        scanStatus: data.status === 'completed' ? 'Completed' : data.status === 'processing' ? 'Scanning' : data.status === 'error' ? 'Error' : 'Pending',
+                                        threatLevel: data.scanResults ? data.scanResults.threat_level : null,
+                                        entityCount: data.scanResults ? data.scanResults.entity_count : 0,
+                                        scanResults: data.scanResults || null,
+                                        fileData: data.fileData || null,
                                     };
                                 });
                                 setQueueFiles(files);
@@ -274,8 +290,9 @@
 
                     // Save to Firestore with base64 data
                     const currentUser = window.firebaseAuth.currentUser;
-                    await window.addDoc(window.collection(window.firebaseDb, 'files'), {
+                    const docRef = await window.addDoc(window.collection(window.firebaseDb, 'files'), {
                         fileName: file.name,
+                        fileType: file.name.split('.').pop().toUpperCase(),
                         uploadedBy: currentUser ? currentUser.email : 'Unknown',
                         uploadTime: window.serverTimestamp(),
                         fileData: base64Data,
@@ -293,6 +310,9 @@
                     setTimeout(() => {
                         setUploadingFiles(prev => prev.filter(u => u.id !== id));
                     }, 800);
+
+                    // Auto-trigger AI scan
+                    scanFile(docRef.id, base64Data, file.name);
                 } catch (e) {
                     console.error('Upload error:', e);
                     setUploadError('Upload failed for "' + file.name + '": ' + (e.code || e.message));
@@ -306,6 +326,56 @@
                 } catch (e) {
                     console.error('Delete error:', e);
                     setQueueFiles(prev => prev.filter(d => d.id !== docId));
+                }
+            };
+
+            const scanFile = async (docId, base64Data, fileName) => {
+                try {
+                    // Update status to processing
+                    await window.updateDoc(window.doc(window.firebaseDb, 'files', docId), { status: 'processing' });
+
+                    const currentUser = window.firebaseAuth.currentUser;
+                    const resp = await fetch(AI_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            fileData: base64Data,
+                            fileName: fileName,
+                            user: currentUser ? currentUser.email : 'admin'
+                        })
+                    });
+                    const result = await resp.json();
+
+                    if (result.success) {
+                        // Store scan results in Firestore
+                        await window.updateDoc(window.doc(window.firebaseDb, 'files', docId), {
+                            status: 'completed',
+                            scanResults: {
+                                threat_level: result.threat_level || 'LOW',
+                                risk_score: result.risk_score || 0,
+                                entity_count: result.entity_count || 0,
+                                entity_breakdown: result.entity_breakdown || {},
+                                entities: (result.entities || []).slice(0, 50), // limit stored entities
+                                masked_text: (result.masked_text || '').substring(0, 5000),
+                                recommended_actions: result.recommended_actions || [],
+                                scannedAt: new Date().toISOString()
+                            }
+                        });
+                        setScanResults(prev => ({ ...prev, [docId]: result }));
+                    } else {
+                        await window.updateDoc(window.doc(window.firebaseDb, 'files', docId), {
+                            status: 'error',
+                            scanError: result.error || 'Scan failed'
+                        });
+                    }
+                } catch (e) {
+                    console.error('AI Scan error:', e);
+                    try {
+                        await window.updateDoc(window.doc(window.firebaseDb, 'files', docId), {
+                            status: 'error',
+                            scanError: 'AI server unreachable. Start Flask: python app.py'
+                        });
+                    } catch (ignored) {}
                 }
             };
 
@@ -382,7 +452,7 @@
                                             onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
                                             onClick={() => fileInputRef.current && fileInputRef.current.click()}
                                         >
-                                            <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleChange} accept=".sql,.pdf,.docx,.csv,.json,.txt,.png,.jpg,.jpeg,.xlsx" />
+                                            <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleChange} accept={fileTypeExtMap[selectedFileType] || fileTypeExtMap['ALL']} />
                                             <div className="w-24 h-24 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 text-deepblue/50 group-hover:text-cyan-500">
                                                 <Icons.CloudUpload />
                                             </div>
@@ -391,11 +461,14 @@
                                             <button className="px-7 py-2.5 bg-gradient-to-r from-deepblue to-cyan-600 hover:from-blue-800 hover:to-cyan-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-[0_4px_20px_rgba(6,182,212,0.4)] transition-all pointer-events-none">
                                                 Browse Files
                                             </button>
-                                            <div className="mt-8 flex flex-wrap justify-center gap-2">
+                                            <p className="mt-6 text-xs font-semibold text-slate-500 mb-2">Select file type to filter:</p>
+                                            <div className="flex flex-wrap justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                                <button onClick={() => setSelectedFileType('ALL')} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${selectedFileType === 'ALL' ? 'bg-deepblue text-white ring-2 ring-deepblue/30 shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>ALL</button>
                                                 {['SQL', 'PDF', 'DOCX', 'CSV', 'JSON', 'TXT', 'XLSX', 'PNG', 'JPG'].map(t => (
-                                                    <span key={t} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold ${fileTypeColors[t] || 'bg-slate-100 text-slate-500'}`}>{t}</span>
+                                                    <button key={t} onClick={() => setSelectedFileType(t)} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${selectedFileType === t ? 'ring-2 ring-deepblue/30 shadow-md scale-110 ' + (fileTypeColors[t] || 'bg-slate-100 text-slate-500') : (fileTypeColors[t] || 'bg-slate-100 text-slate-500') + ' hover:opacity-80'}`}>{t}</button>
                                                 ))}
                                             </div>
+                                            {selectedFileType !== 'ALL' && <p className="mt-2 text-[11px] text-cyan-600 font-semibold">Filtering: only .{selectedFileType.toLowerCase()} files will appear in the file picker</p>}
                                         </div>
 
                                         {/* Active Uploads */}
@@ -434,11 +507,12 @@
                                         </div>
 
                                         <div className="glass-card bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                                            <h3 className="text-sm font-bold text-slate-800 mb-4">Connection</h3>
-                                            <div className="flex items-center space-x-3">
-                                                <div className="w-3 h-3 rounded-full bg-amber-400 shadow-amber-400/50 shadow-[0_0_6px]"></div>
-                                                <span className="text-sm font-medium text-slate-600">Local Demo Mode</span>
+                                            <h3 className="text-sm font-bold text-slate-800 mb-4">AI Engine</h3>
+                                            <div className="flex items-center space-x-3 mb-2">
+                                                <div className="w-3 h-3 rounded-full bg-emerald-400 shadow-emerald-400/50 shadow-[0_0_6px]"></div>
+                                                <span className="text-sm font-medium text-slate-600">Connected to Flask API</span>
                                             </div>
+                                            <p className="text-[11px] text-slate-400 ml-6">localhost:5000/api/scan</p>
                                         </div>
 
                                         <div className="glass-card bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -467,7 +541,8 @@
                                                     <th className="p-4">Size</th>
                                                     <th className="p-4">Upload Time</th>
                                                     <th className="p-4">Status</th>
-                                                    <th className="p-4 pr-6 text-right">Action</th>
+                                                    <th className="p-4">Threat Level</th>
+                                                    <th className="p-4 pr-6 text-right">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 text-sm">
@@ -501,8 +576,35 @@
                                                                     {doc.scanStatus}
                                                                 </span>
                                                             </td>
+                                                            <td className="p-4">
+                                                                {doc.threatLevel ? (
+                                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${
+                                                                        doc.threatLevel === 'CRITICAL' ? 'bg-red-100 text-red-700 border-red-200' :
+                                                                        doc.threatLevel === 'HIGH' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                                                                        doc.threatLevel === 'MEDIUM' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                                                                        'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                                                    }`}>
+                                                                        {doc.threatLevel === 'CRITICAL' || doc.threatLevel === 'HIGH' ? <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span> : null}
+                                                                        {doc.threatLevel}
+                                                                        {doc.entityCount > 0 ? <span className="ml-1 text-[10px] opacity-80">({doc.entityCount})</span> : null}
+                                                                    </span>
+                                                                ) : doc.scanStatus === 'Scanning' ? (
+                                                                    <span className="text-xs text-cyan-500 font-medium flex items-center gap-1"><Icons.Spinner /> Analyzing...</span>
+                                                                ) : <span className="text-xs text-slate-400">{"\u2014"}</span>}
+                                                            </td>
                                                             <td className="p-4 pr-6 text-right">
-                                                                <button onClick={() => removeFile(doc.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Remove"><Icons.Trash /></button>
+                                                                <div className="flex items-center justify-end space-x-1">
+                                                                    {doc.scanResults ? (
+                                                                        <button onClick={() => { setModalTab('sanitized'); setViewingResult(doc); }} className="px-2.5 py-1 text-[11px] font-bold text-deepblue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors" title="View AI Results">
+                                                                            View Results
+                                                                        </button>
+                                                                    ) : (doc.scanStatus === 'Pending' || doc.scanStatus === 'Error') && doc.fileData ? (
+                                                                        <button onClick={() => scanFile(doc.id, doc.fileData, doc.fileName)} className="px-2.5 py-1 text-[11px] font-bold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded-lg transition-colors" title="Run AI Scan">
+                                                                            {doc.scanStatus === 'Error' ? 'Retry Scan' : 'Scan'}
+                                                                        </button>
+                                                                    ) : null}
+                                                                    <button onClick={() => removeFile(doc.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Remove"><Icons.Trash /></button>
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                     );
@@ -515,6 +617,150 @@
                             </div>
                         </div>
                     </main>
+
+                    {/* ===== AI SCAN RESULTS MODAL ===== */}
+                    {viewingResult && viewingResult.scanResults && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setViewingResult(null)}></div>
+                            <div className="relative bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+                                {/* Modal Header */}
+                                <div className="bg-gradient-to-r from-deepblue to-cyan-600 p-6 text-white relative overflow-hidden shrink-0">
+                                    <div className="absolute -top-8 -right-8 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+                                    <div className="flex justify-between items-start relative z-10">
+                                        <div>
+                                            <h2 className="text-xl font-extrabold tracking-tight">AI Analysis Results</h2>
+                                            <p className="text-cyan-100 text-sm mt-1 font-medium">{viewingResult.fileName}</p>
+                                        </div>
+                                        <button onClick={() => setViewingResult(null)} className="text-white/80 hover:text-white text-2xl font-bold transition-colors">&times;</button>
+                                    </div>
+                                    {/* Threat Level Badge */}
+                                    <div className="mt-4 flex items-center gap-4">
+                                        <div className={`px-4 py-2 rounded-xl text-sm font-extrabold shadow-lg ${
+                                            viewingResult.scanResults.threat_level === 'CRITICAL' ? 'bg-red-500 text-white' :
+                                            viewingResult.scanResults.threat_level === 'HIGH' ? 'bg-orange-500 text-white' :
+                                            viewingResult.scanResults.threat_level === 'MEDIUM' ? 'bg-amber-400 text-amber-900' :
+                                            'bg-emerald-400 text-emerald-900'
+                                        }`}>
+                                            {viewingResult.scanResults.threat_level} THREAT
+                                        </div>
+                                        <div className="text-cyan-100 text-sm">
+                                            Risk Score: <span className="font-bold text-white">{viewingResult.scanResults.risk_score}</span>
+                                        </div>
+                                        <div className="text-cyan-100 text-sm">
+                                            PII Entities: <span className="font-bold text-white">{viewingResult.scanResults.entity_count}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Modal Body */}
+                                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                                    {/* Entity Breakdown */}
+                                    {viewingResult.scanResults.entity_breakdown && Object.keys(viewingResult.scanResults.entity_breakdown).length > 0 && (
+                                        <div>
+                                            <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                                <span className="w-1 h-5 bg-cyan-500 rounded-full"></span>
+                                                PII Entity Breakdown
+                                            </h3>
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                {Object.entries(viewingResult.scanResults.entity_breakdown).map(([type, count]) => (
+                                                    <div key={type} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between hover:shadow-md transition-shadow">
+                                                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">{type.replace(/_/g, ' ')}</span>
+                                                        <span className="text-lg font-extrabold text-deepblue">{count}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Detected Entities List */}
+                                    {viewingResult.scanResults.entities && viewingResult.scanResults.entities.length > 0 && (
+                                        <div>
+                                            <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                                <span className="w-1 h-5 bg-amber-500 rounded-full"></span>
+                                                Detected Entities ({viewingResult.scanResults.entities.length})
+                                            </h3>
+                                            <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden max-h-48 overflow-y-auto">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead className="bg-slate-100 sticky top-0">
+                                                        <tr className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                                                            <th className="p-2.5 pl-4">Type</th>
+                                                            <th className="p-2.5">Masked Value</th>
+                                                            <th className="p-2.5">Confidence</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {viewingResult.scanResults.entities.map((ent, i) => (
+                                                            <tr key={i} className="hover:bg-white transition-colors">
+                                                                <td className="p-2.5 pl-4">
+                                                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-100 text-indigo-700">{ent.type}</span>
+                                                                </td>
+                                                                <td className="p-2.5 font-mono text-slate-600 truncate max-w-[200px]">{ent.masked || '\u2014'}</td>
+                                                                <td className="p-2.5">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                                                            <div className="h-full bg-cyan-500 rounded-full" style={{ width: ((ent.confidence || 0) * 100) + '%' }}></div>
+                                                                        </div>
+                                                                        <span className="text-[10px] font-bold text-slate-500">{Math.round((ent.confidence || 0) * 100)}%</span>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Original & Sanitized Text - Dual View */}
+                                    {(viewingResult.scanResults.masked_text || viewingResult.fileData) && (
+                                        <div>
+                                            <div className="flex items-center gap-1 mb-3">
+                                                <span className="w-1 h-5 bg-emerald-500 rounded-full mr-1"></span>
+                                                <button onClick={() => setModalTab('original')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${modalTab === 'original' ? 'bg-deepblue text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Original File</button>
+                                                <button onClick={() => setModalTab('sanitized')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${modalTab === 'sanitized' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Sanitized Output</button>
+                                            </div>
+                                            {modalTab === 'original' ? (
+                                                <div className="bg-slate-900 text-blue-300 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap border border-slate-700">
+                                                    {viewingResult.fileData ? (() => { try { const parts = viewingResult.fileData.split(','); return atob(parts[1] || parts[0]); } catch(e) { return 'Unable to decode original file content.'; } })() : 'Original file data not available.'}
+                                                </div>
+                                            ) : (
+                                                <div className="bg-slate-900 text-green-400 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap border border-slate-700">
+                                                    {viewingResult.scanResults.masked_text || 'No sanitized output available.'}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Recommended Actions */}
+                                    {viewingResult.scanResults.recommended_actions && viewingResult.scanResults.recommended_actions.length > 0 && (
+                                        <div>
+                                            <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                                <span className="w-1 h-5 bg-deepblue rounded-full"></span>
+                                                Recommended Actions
+                                            </h3>
+                                            <div className="space-y-2">
+                                                {viewingResult.scanResults.recommended_actions.map((action, i) => (
+                                                    <div key={i} className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
+                                                        <span className="text-blue-500 mt-0.5 shrink-0">
+                                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                        </span>
+                                                        <span className="text-xs font-medium text-blue-800">{action}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Modal Footer */}
+                                <div className="border-t border-slate-200 p-4 flex justify-end shrink-0 bg-slate-50">
+                                    <button onClick={() => setViewingResult(null)} className="px-6 py-2.5 bg-gradient-to-r from-deepblue to-cyan-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all text-sm">
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };

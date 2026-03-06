@@ -161,10 +161,18 @@
                             const total = files.length;
                             const completed = files.filter(f => f.status === 'completed').length;
                             const processing = files.filter(f => f.status === 'processing' || f.status === 'uploaded').length;
+                            // Aggregate PII entities from scan results
+                            let totalPII = 0;
+                            files.forEach(f => {
+                                if (f.scanResults && f.scanResults.entity_count) {
+                                    totalPII += f.scanResults.entity_count;
+                                }
+                            });
+
                             setStats([
                                 { label: 'Total Files Uploaded', value: String(total), change: `${processing} processing`, icon: Icons.FileUp, color: 'blue' },
                                 { label: 'Files Processed', value: String(completed + processing), change: total > 0 ? `${Math.round(((completed + processing) / total) * 100)}% success rate` : '0%', icon: Icons.CheckCircle, color: 'cyan' },
-                                { label: 'PII Entities Detected', value: '—', change: 'Across all datasets', icon: Icons.AlertTriangle, color: 'amber' },
+                                { label: 'PII Entities Detected', value: totalPII > 0 ? totalPII.toLocaleString() : '0', change: 'Across all datasets', icon: Icons.AlertTriangle, color: 'amber' },
                                 { label: 'Sanitized Files', value: String(completed), change: 'Ready for download', icon: Icons.ShieldCheck, color: 'emerald' },
                             ]);
 
