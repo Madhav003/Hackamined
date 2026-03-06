@@ -101,6 +101,45 @@ def extract_text_from_txt(filepath: str) -> str:
     return text
 
 
+def extract_text_from_csv(filepath: str) -> str:
+    """
+    Read a CSV file and return its content as plain text.
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"CSV file not found: {filepath}")
+
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            text = f.read()
+    except UnicodeDecodeError:
+        with open(filepath, "r", encoding="latin-1") as f:
+            text = f.read()
+
+    logger.info("CSV ingestion complete: %d chars from %s", len(text), filepath)
+    return text
+
+
+def extract_text_from_xlsx(filepath: str) -> str:
+    """
+    Extract text from an Excel .xlsx file by reading all sheets.
+    """
+    import pandas as pd
+
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"XLSX file not found: {filepath}")
+
+    xls = pd.ExcelFile(filepath)
+    parts = []
+    for sheet_name in xls.sheet_names:
+        df = pd.read_excel(xls, sheet_name=sheet_name, dtype=str)
+        parts.append(df.fillna("").to_string(index=False))
+
+    full_text = "\n\n".join(parts)
+    logger.info("XLSX ingestion complete: %d sheets, %d total chars",
+                len(xls.sheet_names), len(full_text))
+    return full_text
+
+
 def ingest_file(filepath: str) -> str:
     """
     Router: detect file type and dispatch to the appropriate extractor.
@@ -117,6 +156,8 @@ def ingest_file(filepath: str) -> str:
         ".pdf":  extract_text_from_pdf,
         ".docx": extract_text_from_docx,
         ".txt":  extract_text_from_txt,
+        ".csv":  extract_text_from_csv,
+        ".xlsx": extract_text_from_xlsx,
         ".sql":  extract_text_from_txt,  # SQL files are plain text
     }
 

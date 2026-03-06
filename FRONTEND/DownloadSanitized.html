@@ -163,6 +163,7 @@
                                         piiRemoved: 0,
                                         fileSize: sizeStr,
                                         fileData: data.fileData || '',
+                                        sanitizedFileData: data.sanitizedFileData || '',
                                     };
                                 });
                                 setDemoFiles(list);
@@ -205,9 +206,10 @@
             const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
             const handleDownload = (file) => {
-                if (file.fileData) {
+                const downloadData = file.sanitizedFileData || file.fileData;
+                if (downloadData) {
                     const link = document.createElement('a');
-                    link.href = file.fileData;
+                    link.href = downloadData;
                     link.download = file.fileName;
                     document.body.appendChild(link);
                     link.click();

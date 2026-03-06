@@ -185,6 +185,7 @@
                                         uploadedBy: data.uploadedBy || 'Unknown',
                                         originalFile: data.fileName || '',
                                         fileData: data.fileData || '',
+                                        sanitizedFileData: data.sanitizedFileData || '',
                                     };
                                 });
                                 setFiles(list);
@@ -444,7 +445,10 @@
                                         <span className="text-xs font-semibold text-emerald-700">{"Sanitized Document \u2014 All PII has been securely redacted"}</span>
                                     </div>
                                     <div className="bg-slate-900 rounded-xl p-5 overflow-x-auto">
-                                        <pre className="text-sm text-slate-300 font-mono leading-relaxed whitespace-pre-wrap">{(previewFile.fileData ? atob(previewFile.fileData.split(',')[1] || '') : 'No content available. File data not stored.').substring(0, 2000).split('[REDACTED').map((part, i) => {
+                                        <pre className="text-sm text-slate-300 font-mono leading-relaxed whitespace-pre-wrap">{(() => {
+                                            const src = previewFile.sanitizedFileData || previewFile.fileData;
+                                            return src ? atob(src.split(',')[1] || '') : 'No content available. File data not stored.';
+                                        })().substring(0, 2000).split('[REDACTED').map((part, i) => {
                                             if (i === 0) return part;
                                             const endIdx = part.indexOf(']');
                                             const tag = '[REDACTED' + part.substring(0, endIdx + 1);

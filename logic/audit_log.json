@@ -430,5 +430,357 @@
     "details": "Threat level: CRITICAL (score: 212.8)",
     "prev_hash": "ed60c74f48742747d0dbb401401ba363577dd4e86a2598a9ef88ecf493f7cc45",
     "entry_hash": "021936783c47aa4c984e247ed08c0f620657879a885812856aef1e7d73181a9b"
+  },
+  {
+    "timestamp": "2026-03-06T04:58:33.959609+00:00",
+    "user": "mahir@gmail.com",
+    "action": "UPLOAD",
+    "details": "File uploaded: pii_scan_vknoxff4.txt",
+    "prev_hash": "021936783c47aa4c984e247ed08c0f620657879a885812856aef1e7d73181a9b",
+    "entry_hash": "78d9f84255bc8d085faaed12b59cf04bc959161029ac82e11d8bb99a1c5be5a8"
+  },
+  {
+    "timestamp": "2026-03-06T04:58:33.981302+00:00",
+    "user": "mahir@gmail.com",
+    "action": "EXTRACT",
+    "details": "Extracted 1501 chars from pii_scan_vknoxff4.txt",
+    "prev_hash": "78d9f84255bc8d085faaed12b59cf04bc959161029ac82e11d8bb99a1c5be5a8",
+    "entry_hash": "e33bae51c9841668fac8fb9ac5da2daab2c6308dbc31caea8df01116c595d1e7"
+  },
+  {
+    "timestamp": "2026-03-06T04:58:34.853162+00:00",
+    "user": "mahir@gmail.com",
+    "action": "ANALYZE",
+    "details": "Detected 74 PII entities in pii_scan_vknoxff4.txt",
+    "prev_hash": "e33bae51c9841668fac8fb9ac5da2daab2c6308dbc31caea8df01116c595d1e7",
+    "entry_hash": "74290e143e2f35a2b6561f20b8c3d1d28bc33fa22e38c4ee610d3a631c76d4ec"
+  },
+  {
+    "timestamp": "2026-03-06T04:58:35.084582+00:00",
+    "user": "mahir@gmail.com",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for pii_scan_vknoxff4.txt",
+    "prev_hash": "74290e143e2f35a2b6561f20b8c3d1d28bc33fa22e38c4ee610d3a631c76d4ec",
+    "entry_hash": "fc36eefee007a27bae05d82cea718f928ab6ad3fe9628c17cd46cced026c64fc"
+  },
+  {
+    "timestamp": "2026-03-06T04:58:35.089008+00:00",
+    "user": "mahir@gmail.com",
+    "action": "REPORT",
+    "details": "Threat level: CRITICAL (score: 212.8)",
+    "prev_hash": "fc36eefee007a27bae05d82cea718f928ab6ad3fe9628c17cd46cced026c64fc",
+    "entry_hash": "834fa3c8587eea5910dd17865209f411d3920f9bab576280c310a424a9ba567e"
+  },
+  {
+    "timestamp": "2026-03-06T05:09:58.860607+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (1501 chars)",
+    "prev_hash": "834fa3c8587eea5910dd17865209f411d3920f9bab576280c310a424a9ba567e",
+    "entry_hash": "a368a76956f56d231db3d0ffdbf98cc3f6109d59250819091ea964ea869883ba"
+  },
+  {
+    "timestamp": "2026-03-06T05:09:59.414419+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 74 entities, threat=CRITICAL",
+    "prev_hash": "a368a76956f56d231db3d0ffdbf98cc3f6109d59250819091ea964ea869883ba",
+    "entry_hash": "aa51337762b4c993496464d594979103a3767606262dfb5ecb95981731f16e3f"
+  },
+  {
+    "timestamp": "2026-03-06T05:09:59.437674+00:00",
+    "user": "mahir@gmail.com",
+    "action": "UPLOAD",
+    "details": "File uploaded: pii_scan_vivvp8cp.txt",
+    "prev_hash": "aa51337762b4c993496464d594979103a3767606262dfb5ecb95981731f16e3f",
+    "entry_hash": "219b642f0406ac5699907465d802117645bf290857439b780ddde3132b7dd1d6"
+  },
+  {
+    "timestamp": "2026-03-06T05:09:59.442838+00:00",
+    "user": "mahir@gmail.com",
+    "action": "EXTRACT",
+    "details": "Extracted 1501 chars from pii_scan_vivvp8cp.txt",
+    "prev_hash": "219b642f0406ac5699907465d802117645bf290857439b780ddde3132b7dd1d6",
+    "entry_hash": "2597014e733d90f9e16c5f7ec0277d23777d0b82764e3dd7956835d38b7f7bb7"
+  },
+  {
+    "timestamp": "2026-03-06T05:09:59.565555+00:00",
+    "user": "mahir@gmail.com",
+    "action": "ANALYZE",
+    "details": "Detected 74 PII entities in pii_scan_vivvp8cp.txt",
+    "prev_hash": "2597014e733d90f9e16c5f7ec0277d23777d0b82764e3dd7956835d38b7f7bb7",
+    "entry_hash": "e74e89c0f1c3020694abf9b4ba27e549429f8698cb46b2e27cab114367d2f219"
+  },
+  {
+    "timestamp": "2026-03-06T05:09:59.585221+00:00",
+    "user": "mahir@gmail.com",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for pii_scan_vivvp8cp.txt",
+    "prev_hash": "e74e89c0f1c3020694abf9b4ba27e549429f8698cb46b2e27cab114367d2f219",
+    "entry_hash": "6f1cd818629109ac0aa4ee6146e88548b6f230821717d424086fa1e39281b952"
+  },
+  {
+    "timestamp": "2026-03-06T05:09:59.589889+00:00",
+    "user": "mahir@gmail.com",
+    "action": "REPORT",
+    "details": "Threat level: CRITICAL (score: 212.8)",
+    "prev_hash": "6f1cd818629109ac0aa4ee6146e88548b6f230821717d424086fa1e39281b952",
+    "entry_hash": "8ff8597c8c5003a3864f346681d967a0b6e3f8664911cf23a5a44c5b44ac68b9"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.137618+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (124 chars)",
+    "prev_hash": "8ff8597c8c5003a3864f346681d967a0b6e3f8664911cf23a5a44c5b44ac68b9",
+    "entry_hash": "769ab86e1633248f166f5942f0e5a2cf36a66695fe0e2d6b10642dc3e479e1e1"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.182404+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 5 entities, threat=MEDIUM",
+    "prev_hash": "769ab86e1633248f166f5942f0e5a2cf36a66695fe0e2d6b10642dc3e479e1e1",
+    "entry_hash": "c8eab385c82d6e62fa0d948f4c875e5e3a4e67053ac2419eac1497e10f377e34"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.187004+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (162 chars)",
+    "prev_hash": "c8eab385c82d6e62fa0d948f4c875e5e3a4e67053ac2419eac1497e10f377e34",
+    "entry_hash": "c7fa8c230de72cc241f7366d05e2b66d5316deb7ab4e72fb48279665e4b052be"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.227930+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 10 entities, threat=HIGH",
+    "prev_hash": "c7fa8c230de72cc241f7366d05e2b66d5316deb7ab4e72fb48279665e4b052be",
+    "entry_hash": "a4839b177c90dab6dcec04a6459a919b8f732ad63f09ebc25d0925c2552aba21"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.232622+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (136 chars)",
+    "prev_hash": "a4839b177c90dab6dcec04a6459a919b8f732ad63f09ebc25d0925c2552aba21",
+    "entry_hash": "31b4b8ce322ebbe52c479f22a5ab38edd33f96f33f92d6bd7c883db4856ac54c"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.263671+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 6 entities, threat=MEDIUM",
+    "prev_hash": "31b4b8ce322ebbe52c479f22a5ab38edd33f96f33f92d6bd7c883db4856ac54c",
+    "entry_hash": "45bc10ad74302a14cdc8a48ad2f933b95b5eafffa0c9bbec56566f6fdbc97f82"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.268661+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (128 chars)",
+    "prev_hash": "45bc10ad74302a14cdc8a48ad2f933b95b5eafffa0c9bbec56566f6fdbc97f82",
+    "entry_hash": "708d320a69124ff77ee24eef4729f725c35584a38e57ab4c88177e6aecbfed1b"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.297940+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 6 entities, threat=MEDIUM",
+    "prev_hash": "708d320a69124ff77ee24eef4729f725c35584a38e57ab4c88177e6aecbfed1b",
+    "entry_hash": "42f5e8f9578bac22e21bc9c9066893c27a194ae3ccb8141a708f7d893705edce"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.303037+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (160 chars)",
+    "prev_hash": "42f5e8f9578bac22e21bc9c9066893c27a194ae3ccb8141a708f7d893705edce",
+    "entry_hash": "877fdacc8c77b64a10a6486b35790687a0e7ceba8bc9fd8274d1547ae7927303"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.335724+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 7 entities, threat=MEDIUM",
+    "prev_hash": "877fdacc8c77b64a10a6486b35790687a0e7ceba8bc9fd8274d1547ae7927303",
+    "entry_hash": "b462bf326c3b8a5facfc50bd5ea895cc60d63603189bfc4220edc97389d1b8e4"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.340408+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (137 chars)",
+    "prev_hash": "b462bf326c3b8a5facfc50bd5ea895cc60d63603189bfc4220edc97389d1b8e4",
+    "entry_hash": "2d1a9b29d0a25c4ce6f3f2f26424a3ddc8cbcf543b1cbd17cd1bb4eb14880f13"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.375197+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 11 entities, threat=MEDIUM",
+    "prev_hash": "2d1a9b29d0a25c4ce6f3f2f26424a3ddc8cbcf543b1cbd17cd1bb4eb14880f13",
+    "entry_hash": "ae733b0dc24287aee4d96401ae52ec37bcaedf513f35ea2d3fa89acd94e0c92e"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.380330+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (154 chars)",
+    "prev_hash": "ae733b0dc24287aee4d96401ae52ec37bcaedf513f35ea2d3fa89acd94e0c92e",
+    "entry_hash": "0f3d334e88be3bef34e2d50ef6e0ab4f93206633cba3349b573d4347b3bb217d"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.413888+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 6 entities, threat=MEDIUM",
+    "prev_hash": "0f3d334e88be3bef34e2d50ef6e0ab4f93206633cba3349b573d4347b3bb217d",
+    "entry_hash": "448d892ed21dedb31cef7ab38d37f9bc5da4ddff59552cde8296ddf7cfadb1c1"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.418571+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (133 chars)",
+    "prev_hash": "448d892ed21dedb31cef7ab38d37f9bc5da4ddff59552cde8296ddf7cfadb1c1",
+    "entry_hash": "fca3eaf16324b48c96b4d6b01aae425006aa6a309b28397ded97c3a779e9e4cb"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.450855+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 8 entities, threat=HIGH",
+    "prev_hash": "fca3eaf16324b48c96b4d6b01aae425006aa6a309b28397ded97c3a779e9e4cb",
+    "entry_hash": "643358a03f4b666ba37ed88843fdb74b8e9306d3074cf987a06682f46c96b797"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.455404+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (121 chars)",
+    "prev_hash": "643358a03f4b666ba37ed88843fdb74b8e9306d3074cf987a06682f46c96b797",
+    "entry_hash": "0e7ea58d4eca42919966144ee9d02f955637ba99607c1657d6de08b94ad8d0f6"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.485877+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 7 entities, threat=MEDIUM",
+    "prev_hash": "0e7ea58d4eca42919966144ee9d02f955637ba99607c1657d6de08b94ad8d0f6",
+    "entry_hash": "5cc2502297db4c10a5ff489a36783800025d625f2ec5659b86ad6269a126ce72"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.490848+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (137 chars)",
+    "prev_hash": "5cc2502297db4c10a5ff489a36783800025d625f2ec5659b86ad6269a126ce72",
+    "entry_hash": "4f054b0c718f7989ac2af7fd012c94adb6154e04d33939d8bf551d6508cc8e23"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.521314+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 6 entities, threat=MEDIUM",
+    "prev_hash": "4f054b0c718f7989ac2af7fd012c94adb6154e04d33939d8bf551d6508cc8e23",
+    "entry_hash": "dbbf49c1b65159a90e894a58286d5c544d47931f5afb62ea7470c31dd9e10815"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.588989+00:00",
+    "user": "mahir@gmail.com",
+    "action": "UPLOAD",
+    "details": "File uploaded: pii_scan_13h03f4_.xlsx",
+    "prev_hash": "dbbf49c1b65159a90e894a58286d5c544d47931f5afb62ea7470c31dd9e10815",
+    "entry_hash": "7047a2514e08720ffd4cca0882ce6cb30b63f9b9f61a17e4d8227b0d8d19612c"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.610945+00:00",
+    "user": "mahir@gmail.com",
+    "action": "EXTRACT",
+    "details": "Extracted 1792 chars from pii_scan_13h03f4_.xlsx",
+    "prev_hash": "7047a2514e08720ffd4cca0882ce6cb30b63f9b9f61a17e4d8227b0d8d19612c",
+    "entry_hash": "07566d769c13b70b56d12df20e8ecf846f5b43fbf13734f655805a06e7848e39"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.743370+00:00",
+    "user": "mahir@gmail.com",
+    "action": "ANALYZE",
+    "details": "Detected 71 PII entities in pii_scan_13h03f4_.xlsx",
+    "prev_hash": "07566d769c13b70b56d12df20e8ecf846f5b43fbf13734f655805a06e7848e39",
+    "entry_hash": "d26ef418be0e5f9d742e5801833aca80a6fd572f5b5e39d7c4046af3953c5b4b"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.766646+00:00",
+    "user": "mahir@gmail.com",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for pii_scan_13h03f4_.xlsx",
+    "prev_hash": "d26ef418be0e5f9d742e5801833aca80a6fd572f5b5e39d7c4046af3953c5b4b",
+    "entry_hash": "99b4bfc8baf0075372daf87241a427374bc0546935843ab6e0d5088b41412b51"
+  },
+  {
+    "timestamp": "2026-03-06T05:10:40.772370+00:00",
+    "user": "mahir@gmail.com",
+    "action": "REPORT",
+    "details": "Threat level: CRITICAL (score: 207.7)",
+    "prev_hash": "99b4bfc8baf0075372daf87241a427374bc0546935843ab6e0d5088b41412b51",
+    "entry_hash": "8f11f4f8297f1db13b834885480db1cb50250ac2d5d710621f3e10868cdb63c7"
+  },
+  {
+    "timestamp": "2026-03-06T07:46:30.143982+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (1501 chars)",
+    "prev_hash": "8f11f4f8297f1db13b834885480db1cb50250ac2d5d710621f3e10868cdb63c7",
+    "entry_hash": "31b5ad306e86051bffc7cf3da5d2542c32f54567aafd2d73c510e47ba0886b43"
+  },
+  {
+    "timestamp": "2026-03-06T07:46:30.907409+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 74 entities, threat=CRITICAL",
+    "prev_hash": "31b5ad306e86051bffc7cf3da5d2542c32f54567aafd2d73c510e47ba0886b43",
+    "entry_hash": "d1904e4c33134d3f9f5a3307ddf746a984c4c2f4583093ebcd4758ea4be8cfbb"
+  },
+  {
+    "timestamp": "2026-03-06T07:46:30.926147+00:00",
+    "user": "mahir@gmail.com",
+    "action": "UPLOAD",
+    "details": "File uploaded: pii_scan_vos578mi.txt",
+    "prev_hash": "d1904e4c33134d3f9f5a3307ddf746a984c4c2f4583093ebcd4758ea4be8cfbb",
+    "entry_hash": "2ddf64f1d6e7c4a19fb29ed47e4a75cb80ee4d936fe71b641dead8d6ae644187"
+  },
+  {
+    "timestamp": "2026-03-06T07:46:30.937814+00:00",
+    "user": "mahir@gmail.com",
+    "action": "EXTRACT",
+    "details": "Extracted 1501 chars from pii_scan_vos578mi.txt",
+    "prev_hash": "2ddf64f1d6e7c4a19fb29ed47e4a75cb80ee4d936fe71b641dead8d6ae644187",
+    "entry_hash": "0f86d05b07f2c3d3d14660c12782447a16f0e965b1146d32a5046883d67a3df8"
+  },
+  {
+    "timestamp": "2026-03-06T07:46:31.119488+00:00",
+    "user": "mahir@gmail.com",
+    "action": "ANALYZE",
+    "details": "Detected 74 PII entities in pii_scan_vos578mi.txt",
+    "prev_hash": "0f86d05b07f2c3d3d14660c12782447a16f0e965b1146d32a5046883d67a3df8",
+    "entry_hash": "bd56b4bbf4ec51832d505fa2febaf1c063e062e71098dcca7c25f970ebcb0dba"
+  },
+  {
+    "timestamp": "2026-03-06T07:46:31.159523+00:00",
+    "user": "mahir@gmail.com",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for pii_scan_vos578mi.txt",
+    "prev_hash": "bd56b4bbf4ec51832d505fa2febaf1c063e062e71098dcca7c25f970ebcb0dba",
+    "entry_hash": "5518e2e73391d2d9cc12cd8e695e804b6e3e06f644d0197cd1bd8592214ec3f3"
+  },
+  {
+    "timestamp": "2026-03-06T07:46:31.166255+00:00",
+    "user": "mahir@gmail.com",
+    "action": "REPORT",
+    "details": "Threat level: CRITICAL (score: 212.8)",
+    "prev_hash": "5518e2e73391d2d9cc12cd8e695e804b6e3e06f644d0197cd1bd8592214ec3f3",
+    "entry_hash": "f80ecc17c8951bf8093a824e97a70ced4aee2ace118f18c31279a871072f9ab5"
   }
 ]
