@@ -270,7 +270,40 @@ def _rule_credit_card_luhn(
 
 
 # ---------------------------------------------------------------------------
-# Rule 5 — Full-Profile Escalation
+# Rule 5 — DATE_TIME False-Positive Suppression
+# ---------------------------------------------------------------------------
+
+# Words that Presidio's DateRecognizer detects as DATE_TIME but are not actual
+# dates — they are temporal frequency descriptors or generic time references.
+_DATE_TIME_FALSE_POSITIVES = {
+    "quarterly", "monthly", "weekly", "daily", "annually", "yearly",
+    "biweekly", "bimonthly", "semiannual", "semi-annual",
+    "hourly", "nightly", "overnight",
+}
+
+
+def _rule_date_time_false_positive(
+    text: str,
+    entities: List[RecognizerResult],
+) -> List[RecognizerResult]:
+    """
+    Drop DATE_TIME detections on words that are temporal frequency
+    descriptors (e.g. 'quarterly', 'monthly'), not actual dates.
+    """
+    kept = []
+    for e in entities:
+        if e.entity_type == "DATE_TIME":
+            matched_text = text[e.start:e.end].strip().lower()
+            if matched_text in _DATE_TIME_FALSE_POSITIVES:
+                logger.debug("Rule 5: Suppressed DATE_TIME false positive '%s' at %d-%d",
+                             matched_text, e.start, e.end)
+                continue
+        kept.append(e)
+    return kept
+
+
+# ---------------------------------------------------------------------------
+# Rule 6 — Full-Profile Escalation
 # ---------------------------------------------------------------------------
 
 def _rule_full_profile_escalation(
@@ -399,6 +432,7 @@ def apply_context_rules(
     result = _rule_full_profile_escalation(text, result)
     result = _rule_standalone_number_suppression(text, result)
     result = _rule_credit_card_luhn(text, result)
+    result = _rule_date_time_false_positive(text, result)
 
     dropped = len(entities) - len(result)
     if dropped:

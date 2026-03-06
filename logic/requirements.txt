@@ -15,3 +15,7 @@ flask-cors>=4.0.0
 pandas>=2.0.0
 openpyxl>=3.1.0
 firebase-admin>=6.0.0
+openai-whisper>=20230314
+pydub>=0.25.1
+imageio-ffmpeg>=0.5.1
+SpeechRecognition>=3.10.0

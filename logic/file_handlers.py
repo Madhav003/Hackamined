@@ -123,13 +123,17 @@ def handle_pdf(input_path: str, output_path: str, sanitize: SanitizeFn) -> dict:
 
     doc = fitz.open(input_path)
     pii_count = 0
+    original_parts = []
+    sanitized_parts = []
 
     for page in doc:
         page_text = page.get_text("text")
         if not page_text.strip():
             continue
 
+        original_parts.append(page_text)
         sanitized = sanitize(page_text)
+        sanitized_parts.append(sanitized)
 
         # Find PII words: words present in original but replaced in sanitized
         pii_words = _find_pii_words(page_text, sanitized)
@@ -149,9 +153,18 @@ def handle_pdf(input_path: str, output_path: str, sanitize: SanitizeFn) -> dict:
     doc.save(output_path, garbage=4, deflate=True)
     doc.close()
 
+    original_text = "\n\n".join(original_parts)
+    sanitized_text = "\n\n".join(sanitized_parts)
+
     logger.info("PDF handler: %s → %s (%d PII words redacted)",
                 os.path.basename(input_path), os.path.basename(output_path), pii_count)
-    return {"status": "Success", "pii_count": pii_count, "output_path": output_path}
+    return {
+        "status": "Success",
+        "pii_count": pii_count,
+        "output_path": output_path,
+        "original_text": original_text,
+        "sanitized_text": sanitized_text,
+    }
 
 
 def _find_pii_words(original: str, sanitized: str) -> list:
@@ -183,15 +196,30 @@ def handle_xlsx(input_path: str, output_path: str, sanitize: SanitizeFn) -> dict
     """
     Read an Excel workbook with pandas, apply sanitization to every
     string cell, and export to a new .xlsx.
+    Limits to 1000 rows per sheet to avoid timeouts on large files.
     """
     import pandas as pd
 
-    xls = pd.ExcelFile(input_path)
+    MAX_ROWS = 1000
+    xls = pd.ExcelFile(input_path, engine="openpyxl")
     pii_count = 0
+    truncated = False
+    original_parts = []
+    sanitized_parts = []
 
     with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
         for sheet_name in xls.sheet_names:
-            df = pd.read_excel(xls, sheet_name=sheet_name, dtype=str)
+            df = pd.read_excel(xls, sheet_name=sheet_name, dtype=str,
+                               engine="openpyxl", nrows=MAX_ROWS)
+
+            # Check if the sheet was truncated
+            df_check = pd.read_excel(xls, sheet_name=sheet_name, dtype=str,
+                                     engine="openpyxl", nrows=MAX_ROWS + 1)
+            if len(df_check) > MAX_ROWS:
+                truncated = True
+
+            # Capture original text before sanitization
+            original_parts.append(df.fillna("").to_string(index=False))
 
             for col in df.columns:
                 for idx in df.index:
@@ -202,11 +230,28 @@ def handle_xlsx(input_path: str, output_path: str, sanitize: SanitizeFn) -> dict
                             pii_count += _estimate_pii_count(val, cleaned)
                             df.at[idx, col] = cleaned
 
+            # Capture sanitized text after sanitization
+            sanitized_parts.append(df.fillna("").to_string(index=False))
+
             df.to_excel(writer, sheet_name=sheet_name, index=False)
 
-    logger.info("XLSX handler: %s → %s (%d PII replacements)",
-                os.path.basename(input_path), os.path.basename(output_path), pii_count)
-    return {"status": "Success", "pii_count": pii_count, "output_path": output_path}
+    original_text = "\n\n".join(original_parts)
+    sanitized_text = "\n\n".join(sanitized_parts)
+    if truncated:
+        note = f"\n\n[NOTE: Only the first {MAX_ROWS} rows per sheet were processed.]"
+        original_text += note
+        sanitized_text += note
+
+    logger.info("XLSX handler: %s → %s (%d PII replacements%s)",
+                os.path.basename(input_path), os.path.basename(output_path),
+                pii_count, ", truncated" if truncated else "")
+    return {
+        "status": "Success",
+        "pii_count": pii_count,
+        "output_path": output_path,
+        "original_text": original_text,
+        "sanitized_text": sanitized_text,
+    }
 
 
 # ---------------------------------------------------------------------------

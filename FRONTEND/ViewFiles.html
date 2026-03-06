@@ -94,7 +94,7 @@
     <div id="root" class="w-full h-full"></div>
 
     <script type="text/babel">
-        const { useState, useMemo } = React;
+        const { useState, useMemo, useRef } = React;
 
         // Helper to decode file content — handles both plain text and base64
         const decodeFileData = (fileData) => {
@@ -134,6 +134,7 @@
             PDF: 'bg-rose-100 text-rose-600', SQL: 'bg-indigo-100 text-indigo-600', CSV: 'bg-emerald-100 text-emerald-600',
             JSON: 'bg-amber-100 text-amber-600', TXT: 'bg-slate-200 text-slate-600', DOCX: 'bg-blue-100 text-blue-600',
             XLSX: 'bg-green-100 text-green-600', PNG: 'bg-purple-100 text-purple-600', JPG: 'bg-purple-100 text-purple-600',
+            MP3: 'bg-pink-100 text-pink-600', WAV: 'bg-pink-100 text-pink-600',
         };
 
         const ITEMS_PER_PAGE = 6;
@@ -154,6 +155,7 @@
             const [currentPage, setCurrentPage] = useState(1);
             const [viewFile, setViewFile] = useState(null); // file to view in modal
             const [viewTab, setViewTab] = useState('original'); // 'original' | 'sanitized'
+            const lastSnapshotRef = useRef('');
 
             // Auth guard + real-time files listener
             React.useEffect(() => {
@@ -174,6 +176,10 @@
                                 const ext = data.fileName.split('.').pop().toUpperCase();
                                 return { id: d.id, ...data, fileType: ext, uploadDate: t.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) };
                             });
+                            // Fingerprint to reduce jitter
+                            const fingerprint = all.map(f => f.id + (f.status||'') + ((f.scanResults||{}).entity_count||0) + ((f.scanResults||{}).threat_level||'')).join('|');
+                            if (fingerprint === lastSnapshotRef.current) return;
+                            lastSnapshotRef.current = fingerprint;
                             setOriginalFiles(all.map(f => ({
                                 id: f.id, fileName: f.fileName, uploadedBy: f.uploadedBy || 'Unknown', fileType: f.fileType || f.fileName.split('.').pop().toUpperCase(),
                                 uploadDate: f.uploadDate,
@@ -519,15 +525,101 @@
 
                                 {/* Modal Body */}
                                 <div className="flex-1 overflow-y-auto p-6">
-                                    {viewTab === 'original' ? (
+                                    {['MP3','WAV'].includes(viewFile.fileType) ? (
+                                        <div className="space-y-4">
+                                            {viewTab === 'original' ? (
+                                                <div>
+                                                    <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                                        <span className="w-1 h-5 bg-blue-500 rounded-full"></span>
+                                                        Original Audio
+                                                    </h3>
+                                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                                        <p className="text-xs text-slate-500 mb-3">Original uploaded audio file (admin access only).</p>
+                                                        <p className="text-xs text-slate-400 italic">Original audio playback is not available — the raw file is not stored for security. Switch to the Sanitized tab to listen to the redacted version.</p>
+                                                    </div>
+                                                    {viewFile.fileData ? (
+                                                        <div className="mt-4">
+                                                            <h4 className="text-xs font-bold text-slate-600 mb-2">Original Transcript</h4>
+                                                            <div className="bg-slate-900 text-blue-300 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[40vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">
+                                                                {decodeFileData(viewFile.fileData)}
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                                        <span className="w-1 h-5 bg-emerald-500 rounded-full"></span>
+                                                        Sanitized Audio (PII Beeped)
+                                                    </h3>
+                                                    {viewFile.sanitizedFilePath ? (
+                                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                                            <audio controls className="w-full" src={'http://localhost:5000/api/download-sanitized/' + viewFile.id}></audio>
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-sm text-slate-500">Sanitized audio not available yet.</p>
+                                                    )}
+                                                    <div className="mt-4">
+                                                        <h4 className="text-xs font-bold text-slate-600 mb-2">Sanitized Transcript</h4>
+                                                        <div className="bg-slate-900 text-green-400 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[40vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">
+                                                            {(() => {
+                                                                const content = (viewFile.scanResults && viewFile.scanResults.sanitizedFileData) || viewFile.sanitizedFileData || (viewFile.scanResults && viewFile.scanResults.masked_text) || '';
+                                                                if (!content) return 'Sanitized transcript not available.';
+                                                                return content;
+                                                            })()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : viewTab === 'original' ? (
                                         <div>
                                             <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
                                                 <span className="w-1 h-5 bg-blue-500 rounded-full"></span>
                                                 Original File Content
                                             </h3>
-                                            <div className="bg-slate-900 text-blue-300 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[60vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">
-                                                {viewFile.fileData ? decodeFileData(viewFile.fileData) : 'Original file data not available.'}
-                                            </div>
+                                            {['PNG','JPG','JPEG'].includes(viewFile.fileType) && viewFile.downloadURL ? (
+                                                <div className="space-y-3">
+                                                    <div className="bg-slate-100 rounded-xl p-4 border border-slate-200 flex justify-center">
+                                                        <img src={viewFile.downloadURL} alt="Original" className="max-h-[40vh] rounded-lg shadow" />
+                                                    </div>
+                                                    <a href={viewFile.downloadURL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all text-sm">
+                                                        <Icons.DownloadSm />
+                                                        Download Original Image
+                                                    </a>
+                                                    {viewFile.fileData ? (
+                                                        <div className="mt-2">
+                                                            <h4 className="text-xs font-bold text-slate-600 mb-2">OCR Text (Original)</h4>
+                                                            <div className="bg-slate-900 text-blue-300 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[30vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">
+                                                                {decodeFileData(viewFile.fileData)}
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            ) : viewFile.fileType === 'PDF' && viewFile.downloadURL ? (
+                                                <div className="space-y-3">
+                                                    <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl flex items-center gap-2">
+                                                        <svg className="h-4 w-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                        <span className="text-xs font-medium text-blue-700">Download the original PDF file below. Text preview is shown underneath.</span>
+                                                    </div>
+                                                    <a href={viewFile.downloadURL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all text-sm">
+                                                        <Icons.DownloadSm />
+                                                        Download Original PDF
+                                                    </a>
+                                                    {viewFile.fileData ? (
+                                                        <div className="mt-2">
+                                                            <h4 className="text-xs font-bold text-slate-600 mb-2">Text Preview</h4>
+                                                            <div className="bg-slate-900 text-blue-300 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[40vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">
+                                                                {decodeFileData(viewFile.fileData)}
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            ) : (
+                                                <div className="bg-slate-900 text-blue-300 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[60vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">
+                                                    {viewFile.fileData ? decodeFileData(viewFile.fileData) : 'Original file data not available.'}
+                                                </div>
+                                            )}
                                         </div>
                                     ) : (
                                         <div>
@@ -535,19 +627,89 @@
                                                 <span className="w-1 h-5 bg-emerald-500 rounded-full"></span>
                                                 Complete Sanitized File (PII Removed)
                                             </h3>
-                                            {['DOCX','PDF','XLSX'].includes(viewFile.fileType) && viewFile.sanitizedFilePath ? (
-                                                <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl flex items-center gap-2 mb-3">
-                                                    <svg className="h-4 w-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                    <span className="text-xs font-medium text-blue-700">{"Text preview shown below. Download the file for the full formatted " + viewFile.fileType + " document."}</span>
+                                            {viewFile.fileType === 'XLSX' && viewFile.sanitizedFilePath ? (
+                                                <div className="space-y-3">
+                                                    <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl flex items-center gap-2">
+                                                        <svg className="h-4 w-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                        <span className="text-xs font-medium text-blue-700">XLSX files cannot be rendered inline. Download the sanitized file to view it in Excel.</span>
+                                                    </div>
+                                                    <a href={'http://localhost:5000/api/download-sanitized/' + viewFile.id} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all text-sm">
+                                                        <Icons.DownloadSm />
+                                                        Download Sanitized XLSX
+                                                    </a>
+                                                    {(() => {
+                                                        const content = (viewFile.scanResults && viewFile.scanResults.sanitizedFileData) || viewFile.sanitizedFileData || (viewFile.scanResults && viewFile.scanResults.masked_text) || '';
+                                                        if (!content) return null;
+                                                        return (
+                                                            <div>
+                                                                <h4 className="text-xs font-bold text-slate-600 mb-2 mt-3">Text Preview</h4>
+                                                                <div className="bg-slate-900 text-green-400 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[40vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">{content}</div>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
-                                            ) : null}
-                                            <div className="bg-slate-900 text-green-400 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[60vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">
-                                                {(() => {
-                                                    const content = (viewFile.scanResults && viewFile.scanResults.sanitizedFileData) || viewFile.sanitizedFileData || (viewFile.scanResults && viewFile.scanResults.masked_text) || '';
-                                                    if (!content) return 'Sanitized content not available. File may not have been scanned yet.';
-                                                    return content;
-                                                })()}
-                                            </div>
+                                            ) : ['PNG','JPG','JPEG'].includes(viewFile.fileType) && viewFile.sanitizedFilePath ? (
+                                                <div className="space-y-3">
+                                                    <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl flex items-center gap-2">
+                                                        <svg className="h-4 w-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                        <span className="text-xs font-medium text-blue-700">Sanitized image with PII visually redacted (black boxes).</span>
+                                                    </div>
+                                                    <div className="bg-slate-100 rounded-xl p-4 border border-slate-200 flex justify-center">
+                                                        <img src={'http://localhost:5000/api/download-sanitized/' + viewFile.id} alt="Sanitized" className="max-h-[40vh] rounded-lg shadow" />
+                                                    </div>
+                                                    <a href={'http://localhost:5000/api/download-sanitized/' + viewFile.id} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all text-sm">
+                                                        <Icons.DownloadSm />
+                                                        Download Sanitized Image
+                                                    </a>
+                                                    {(() => {
+                                                        const content = (viewFile.scanResults && viewFile.scanResults.sanitizedFileData) || viewFile.sanitizedFileData || (viewFile.scanResults && viewFile.scanResults.masked_text) || '';
+                                                        if (!content) return null;
+                                                        return (
+                                                            <div>
+                                                                <h4 className="text-xs font-bold text-slate-600 mb-2 mt-1">OCR Text (Sanitized)</h4>
+                                                                <div className="bg-slate-900 text-green-400 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[30vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">{content}</div>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            ) : viewFile.fileType === 'PDF' && viewFile.sanitizedFilePath ? (
+                                                <div className="space-y-3">
+                                                    <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl flex items-center gap-2">
+                                                        <svg className="h-4 w-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                        <span className="text-xs font-medium text-blue-700">Text preview shown below. Download the file for the full redacted PDF document.</span>
+                                                    </div>
+                                                    <a href={'http://localhost:5000/api/download-sanitized/' + viewFile.id} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all text-sm">
+                                                        <Icons.DownloadSm />
+                                                        Download Sanitized PDF
+                                                    </a>
+                                                    {(() => {
+                                                        const content = (viewFile.scanResults && viewFile.scanResults.sanitizedFileData) || viewFile.sanitizedFileData || (viewFile.scanResults && viewFile.scanResults.masked_text) || '';
+                                                        if (!content) return null;
+                                                        return (
+                                                            <div>
+                                                                <h4 className="text-xs font-bold text-slate-600 mb-2 mt-1">Text Preview</h4>
+                                                                <div className="bg-slate-900 text-green-400 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[40vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">{content}</div>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            ) : (
+                                                <React.Fragment>
+                                                {viewFile.fileType === 'DOCX' && viewFile.sanitizedFilePath ? (
+                                                    <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl flex items-center gap-2 mb-3">
+                                                        <svg className="h-4 w-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                        <span className="text-xs font-medium text-blue-700">{"Text preview shown below. Download the file for the full formatted " + viewFile.fileType + " document."}</span>
+                                                    </div>
+                                                ) : null}
+                                                <div className="bg-slate-900 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[60vh] overflow-y-auto border border-slate-700">
+                                                    <pre className="text-green-400 whitespace-pre-wrap m-0">{(() => {
+                                                        const content = (viewFile.scanResults && viewFile.scanResults.sanitizedFileData) || viewFile.sanitizedFileData || (viewFile.scanResults && viewFile.scanResults.masked_text) || '';
+                                                        if (!content) return 'Sanitized content not available. File may not have been scanned yet.';
+                                                        return content;
+                                                    })()}</pre>
+                                                </div>
+                                                </React.Fragment>
+                                            )}
                                         </div>
                                     )}
                                 </div>

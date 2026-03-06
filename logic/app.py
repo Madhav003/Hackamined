@@ -356,7 +356,7 @@ def api_scan():
         ext = file_type if file_type.startswith(".") else f".{file_type}" if file_type else os.path.splitext(file_name)[1].lower()
         ext = ext.lower()
 
-        supported_extensions = {".txt", ".csv", ".pdf", ".docx", ".xlsx", ".sql", ".png", ".jpg", ".jpeg"}
+        supported_extensions = {".txt", ".csv", ".pdf", ".docx", ".xlsx", ".sql", ".png", ".jpg", ".jpeg", ".mp3", ".wav"}
         if ext not in supported_extensions:
             _update_firestore_error(doc_id, f"Unsupported file type: {ext}")
             return jsonify({"error": f"Unsupported file type: {ext}", "status": "error"}), 400
@@ -390,7 +390,7 @@ def api_scan():
     ext = file_type if file_type.startswith(".") else f".{file_type}" if file_type else os.path.splitext(file_name)[1].lower()
     ext = ext.lower()
 
-    supported_extensions = {".txt", ".csv", ".pdf", ".docx", ".xlsx", ".sql", ".png", ".jpg", ".jpeg"}
+    supported_extensions = {".txt", ".csv", ".pdf", ".docx", ".xlsx", ".sql", ".png", ".jpg", ".jpeg", ".mp3", ".wav"}
     if ext not in supported_extensions:
         _update_firestore_error(doc_id, f"Unsupported file type: {ext}")
         return jsonify({"error": f"Unsupported file type: {ext}", "status": "error"}), 400
@@ -474,7 +474,7 @@ def _background_scan(file_url, file_name, doc_id, ext, local_path=None):
     """Background thread: scan a file for PII. File is either already on disk (local_path) or downloaded from file_url."""
     import time as _time
 
-    SCAN_TIMEOUT = 60  # seconds — hard limit for the entire scan
+    SCAN_TIMEOUT = 300  # seconds — hard limit (audio/Whisper needs more time)
 
     tmp_path = local_path
     start_ts = _time.monotonic()
@@ -503,6 +503,33 @@ def _background_scan(file_url, file_name, doc_id, ext, local_path=None):
         p = get_pipeline()
         sanitized_file_data = ""  # will hold the masked text as a string
         original_text = ""  # will hold the original text for storage
+
+        # ---- Audio file handling (.mp3, .wav) ----
+        if ext in (".mp3", ".wav"):
+            from audio_handler import process_audio_file
+            audio_result = process_audio_file(
+                tmp_path, process_text_with_presidio, SANITIZED_DIR, doc_id
+            )
+            _check_timeout("audio")
+            if audio_result["status"] == "error":
+                raise RuntimeError(audio_result.get("error", "Audio processing failed"))
+            response = {
+                "masked_text": audio_result["masked_text"],
+                "sanitizedFileData": audio_result["masked_text"],
+                "original_text": audio_result["transcript"],
+                "sanitizedFilePath": os.path.basename(audio_result.get("sanitized_path", "")),
+                "entities": audio_result["entities"],
+                "entity_count": audio_result["entity_count"],
+                "threat_level": audio_result["threat_level"],
+                "risk_score": audio_result["risk_score"],
+                "entity_breakdown": audio_result["entity_breakdown"],
+                "recommended_actions": audio_result["recommended_actions"],
+            }
+            _update_firestore_completed(doc_id, response)
+            with _scan_results_lock:
+                _scan_results[doc_id] = {"status": "completed", **response}
+            print(f"[SCAN] Completed (audio): {file_name}, threat={response['threat_level']}")
+            return
 
         # ---- Text-based ASCII-table fast path ----
         text_extensions = {".txt", ".csv", ".sql"}
@@ -583,7 +610,192 @@ def _background_scan(file_url, file_name, doc_id, ext, local_path=None):
             print(f"[SCAN] Completed (SQL): {file_name}, threat={response['threat_level']}")
             return
 
-        # ---- Produce sanitized file via file_handlers ----
+        # ---- XLSX file handling (cell-level sanitization) ----
+        if ext == ".xlsx":
+            _check_timeout("pre-xlsx")
+            handler_result = process_file(tmp_path, SANITIZED_DIR, process_text_with_presidio)
+            _check_timeout("xlsx-sanitize")
+            sanitized_path = handler_result["output_path"]
+            # Rename to include doc_id for uniqueness
+            if sanitized_path and os.path.exists(sanitized_path):
+                final_name = f"{doc_id}_sanitized.xlsx"
+                final_path = os.path.join(SANITIZED_DIR, final_name)
+                try:
+                    os.replace(sanitized_path, final_path)
+                    sanitized_path = final_path
+                except OSError:
+                    pass
+
+            # Text previews from the handler (capped at 3000 chars for Firestore)
+            orig_text = handler_result.get("original_text", "")
+            san_text = handler_result.get("sanitized_text", "")
+
+            # Lightweight analysis on original text for entities/threat
+            from analyzer_engine import analyze_text as _xlsx_analyze
+            from context_rules import apply_context_rules as _xlsx_ctx
+            from threat_intel import generate_threat_report as _xlsx_threat
+            analysis_text = orig_text[:50000]
+            results = _xlsx_analyze(p.analyzer, analysis_text)
+            results = _xlsx_ctx(analysis_text, results)
+            threat_report = _xlsx_threat(file_name, results, len(orig_text))
+            _check_timeout("xlsx-analysis")
+
+            response = {
+                "masked_text": san_text[:3000],
+                "sanitizedFileData": san_text[:3000],
+                "original_text": orig_text,
+                "sanitizedFilePath": sanitized_path or "",
+                "entities": [
+                    {"type": r.entity_type, "confidence": r.score,
+                     "position": f"{r.start}-{r.end}"}
+                    for r in results
+                ][:50],
+                "entity_count": len(results),
+                "threat_level": threat_report.get("threat_assessment", {})
+                    .get("threat_level", "LOW"),
+                "risk_score": threat_report.get("threat_assessment", {})
+                    .get("risk_score", 0),
+                "entity_breakdown": threat_report.get("entity_breakdown", {}),
+                "recommended_actions": threat_report.get("recommended_actions", []),
+            }
+            _update_firestore_completed(doc_id, response)
+            with _scan_results_lock:
+                _scan_results[doc_id] = {"status": "completed", **response}
+            print(f"[SCAN] Completed (XLSX): {file_name}, threat={response['threat_level']}")
+            return
+
+        # ---- PDF file handling (redacted PDF + text preview) ----
+        if ext == '.pdf':
+            _check_timeout("pre-pdf")
+            handler_result = process_file(tmp_path, SANITIZED_DIR, process_text_with_presidio)
+            _check_timeout("pdf-sanitize")
+            sanitized_path = handler_result["output_path"]
+            if sanitized_path and os.path.exists(sanitized_path):
+                final_name = f"{doc_id}_sanitized.pdf"
+                final_path = os.path.join(SANITIZED_DIR, final_name)
+                try:
+                    os.replace(sanitized_path, final_path)
+                    sanitized_path = final_path
+                except OSError:
+                    pass
+
+            orig_text = handler_result.get("original_text", "")
+            san_text = handler_result.get("sanitized_text", "")
+
+            from analyzer_engine import analyze_text as _pdf_analyze
+            from context_rules import apply_context_rules as _pdf_ctx
+            from threat_intel import generate_threat_report as _pdf_threat
+            analysis_text = orig_text[:50000]
+            results = _pdf_analyze(p.analyzer, analysis_text)
+            results = _pdf_ctx(analysis_text, results)
+            threat_report = _pdf_threat(file_name, results, len(orig_text))
+            _check_timeout("pdf-analysis")
+
+            response = {
+                "masked_text": san_text[:3000],
+                "sanitizedFileData": san_text[:3000],
+                "original_text": orig_text,
+                "sanitizedFilePath": sanitized_path or "",
+                "entities": [
+                    {"type": r.entity_type, "confidence": r.score,
+                     "position": f"{r.start}-{r.end}"}
+                    for r in results
+                ][:50],
+                "entity_count": len(results),
+                "threat_level": threat_report.get("threat_assessment", {})
+                    .get("threat_level", "LOW"),
+                "risk_score": threat_report.get("threat_assessment", {})
+                    .get("risk_score", 0),
+                "entity_breakdown": threat_report.get("entity_breakdown", {}),
+                "recommended_actions": threat_report.get("recommended_actions", []),
+            }
+            _update_firestore_completed(doc_id, response)
+            with _scan_results_lock:
+                _scan_results[doc_id] = {"status": "completed", **response}
+            print(f"[SCAN] Completed (PDF): {file_name}, threat={response['threat_level']}")
+            return
+
+        # ---- Image file handling (visual redaction + fast analysis) ----
+        if ext in (".png", ".jpg", ".jpeg"):
+            _check_timeout("pre-image")
+
+            # Resize large images for faster processing
+            try:
+                from PIL import Image as PILImage
+                pil_img = PILImage.open(tmp_path)
+                max_dim = 2000
+                if max(pil_img.size) > max_dim:
+                    ratio = max_dim / max(pil_img.size)
+                    new_size = (int(pil_img.size[0] * ratio), int(pil_img.size[1] * ratio))
+                    pil_img = pil_img.resize(new_size, PILImage.LANCZOS)
+                    pil_img.save(tmp_path)
+                    print(f"[SCAN] Image resized to {new_size} for faster processing")
+                else:
+                    pil_img.close()
+            except Exception as resize_err:
+                print(f"[SCAN] Image resize skipped: {resize_err}")
+
+            # Visual redaction with presidio-image-redactor
+            sanitized_path = None
+            try:
+                from PIL import Image as PILImage
+                from presidio_image_redactor import ImageRedactorEngine
+                img_engine = ImageRedactorEngine()
+                pil_img = PILImage.open(tmp_path)
+                redacted_img = img_engine.redact(pil_img, fill=(0, 0, 0))
+                img_out_name = f"{doc_id}_sanitized{ext}"
+                sanitized_path = os.path.join(SANITIZED_DIR, img_out_name)
+                redacted_img.save(sanitized_path)
+                print(f"[SCAN] Image redacted: {sanitized_path}")
+            except ImportError:
+                print("[SCAN] presidio-image-redactor not installed — skipping image redaction")
+            except Exception as img_err:
+                print(f"[SCAN] Image redaction error: {img_err}")
+            _check_timeout("image-redact")
+
+            # OCR text extraction (once only)
+            original_text = ""
+            try:
+                original_text = ingest_file(tmp_path)
+            except Exception:
+                pass
+
+            # Lightweight Presidio analysis on OCR text
+            sanitized_text = process_text_with_presidio(original_text) if original_text.strip() else ""
+            from analyzer_engine import analyze_text as _img_analyze
+            from context_rules import apply_context_rules as _img_ctx
+            from threat_intel import generate_threat_report as _img_threat
+            analysis_text = original_text[:50000]
+            results = _img_analyze(p.analyzer, analysis_text) if analysis_text.strip() else []
+            results = _img_ctx(analysis_text, results) if analysis_text.strip() else []
+            threat_report = _img_threat(file_name, results, len(original_text))
+            _check_timeout("image-analysis")
+
+            response = {
+                "masked_text": sanitized_text[:3000],
+                "sanitizedFileData": sanitized_text[:3000],
+                "original_text": original_text,
+                "sanitizedFilePath": sanitized_path or "",
+                "entities": [
+                    {"type": r.entity_type, "confidence": r.score,
+                     "position": f"{r.start}-{r.end}"}
+                    for r in results
+                ][:50],
+                "entity_count": len(results),
+                "threat_level": threat_report.get("threat_assessment", {})
+                    .get("threat_level", "LOW"),
+                "risk_score": threat_report.get("threat_assessment", {})
+                    .get("risk_score", 0),
+                "entity_breakdown": threat_report.get("entity_breakdown", {}),
+                "recommended_actions": threat_report.get("recommended_actions", []),
+            }
+            _update_firestore_completed(doc_id, response)
+            with _scan_results_lock:
+                _scan_results[doc_id] = {"status": "completed", **response}
+            print(f"[SCAN] Completed (Image): {file_name}, threat={response['threat_level']}")
+            return
+
+        # ---- Produce sanitized file via file_handlers (DOCX, TXT, CSV) ----
         sanitized_path = None
         try:
             if ext in HANDLERS:
@@ -603,26 +815,9 @@ def _background_scan(file_url, file_name, doc_id, ext, local_path=None):
             print(f"[SCAN] file_handlers error for {file_name}: {handler_err}")
             traceback.print_exc()
 
-        # ---- Image visual redaction (produces redacted image in original format) ----
-        if ext in (".png", ".jpg", ".jpeg") and not sanitized_path:
-            try:
-                from PIL import Image as PILImage
-                from presidio_image_redactor import ImageRedactorEngine
-                img_engine = ImageRedactorEngine()
-                pil_img = PILImage.open(tmp_path)
-                redacted_img = img_engine.redact(pil_img, fill=(0, 0, 0))
-                img_out_name = f"{doc_id}_sanitized{ext}"
-                sanitized_path = os.path.join(SANITIZED_DIR, img_out_name)
-                redacted_img.save(sanitized_path)
-                print(f"[SCAN] Image redacted: {sanitized_path}")
-            except ImportError:
-                print("[SCAN] presidio-image-redactor not installed — skipping image redaction")
-            except Exception as img_err:
-                print(f"[SCAN] Image redaction error: {img_err}")
-
         _check_timeout("pre-analysis")
 
-        # Extract original text for non-text files (PDF, DOCX, etc.)
+        # Extract original text for non-text files (DOCX, etc.)
         if not original_text:
             try:
                 original_text = ingest_file(tmp_path)
@@ -681,12 +876,18 @@ def _background_scan(file_url, file_name, doc_id, ext, local_path=None):
 
 def process_text_with_presidio(raw_text: str) -> str:
     """
-    Wrapper around the existing pipeline for use by file_handlers.
-    Accepts raw text, returns sanitized text with PII masked.
+    Lightweight wrapper for file_handlers: analyze + anonymize only.
+    Skips dual-state encryption, audit logging, and threat reports
+    to keep cell-by-cell processing fast.
     """
+    from analyzer_engine import analyze_text, anonymize_text
+    from context_rules import apply_context_rules
     p = get_pipeline()
-    result = p.process_text(raw_text, "handler_input", "system")
-    return result["masked_text"]
+    results = analyze_text(p.analyzer, raw_text)
+    results = apply_context_rules(raw_text, results)
+    if not results:
+        return raw_text
+    return anonymize_text(p.anonymizer, raw_text, results)
 
 
 @app.route("/upload", methods=["POST", "OPTIONS"])

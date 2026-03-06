@@ -141,7 +141,7 @@
             PDF: 'bg-rose-100 text-rose-600', SQL: 'bg-indigo-100 text-indigo-600', CSV: 'bg-emerald-100 text-emerald-600',
             JSON: 'bg-amber-100 text-amber-600', TXT: 'bg-slate-100 text-slate-600', DOCX: 'bg-blue-100 text-blue-600',
             XLSX: 'bg-green-100 text-green-600', PNG: 'bg-purple-100 text-purple-600', JPG: 'bg-purple-100 text-purple-600',
-            JPEG: 'bg-purple-100 text-purple-600',
+            JPEG: 'bg-purple-100 text-purple-600', MP3: 'bg-pink-100 text-pink-600', WAV: 'bg-pink-100 text-pink-600',
         };
 
         const statusStyles = {
@@ -172,13 +172,14 @@
             const AI_API_URL = 'http://localhost:5000/api/scan';
 
             const fileTypeExtMap = {
-                'ALL': '.txt,.pdf,.docx,.csv,.xlsx,.sql,.png,.jpg,.jpeg',
+                'ALL': '.txt,.pdf,.docx,.csv,.xlsx,.sql,.png,.jpg,.jpeg,.mp3,.wav',
                 'TXT': '.txt', 'PDF': '.pdf', 'DOCX': '.docx', 'CSV': '.csv',
                 'XLSX': '.xlsx', 'SQL': '.sql',
-                'PNG': '.png', 'JPG': '.jpg,.jpeg', 'IMAGE': '.png,.jpg,.jpeg'
+                'PNG': '.png', 'JPG': '.jpg,.jpeg', 'IMAGE': '.png,.jpg,.jpeg',
+                'MP3': '.mp3', 'WAV': '.wav', 'AUDIO': '.mp3,.wav'
             };
 
-            const allowedExts = ['.txt', '.pdf', '.docx', '.csv', '.xlsx', '.sql', '.png', '.jpg', '.jpeg'];
+            const allowedExts = ['.txt', '.pdf', '.docx', '.csv', '.xlsx', '.sql', '.png', '.jpg', '.jpeg', '.mp3', '.wav'];
 
             // Auth guard + real-time queue listener
             useEffect(() => {
@@ -263,7 +264,7 @@
             const processFiles = (files) => {
                 const valid = [], invalid = [];
                 files.forEach(f => validateFile(f) ? valid.push(f) : invalid.push(f.name));
-                if (invalid.length) alert('Rejected: ' + invalid.join(', ') + '\nSupported: SQL, PDF, DOCX, CSV, JSON, TXT, XLSX, PNG, JPG (max 750 KB)');
+                if (invalid.length) alert('Rejected: ' + invalid.join(', ') + '\nSupported: SQL, PDF, DOCX, CSV, JSON, TXT, XLSX, PNG, JPG, MP3, WAV (max 25 MB)');
                 valid.forEach(f => uploadFile(f));
                 if (fileInputRef.current) fileInputRef.current.value = "";
             };
