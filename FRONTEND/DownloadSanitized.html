@@ -163,8 +163,8 @@
                                         sanitizedDate: ts.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
                                         piiRemoved: sr.entity_count || 0,
                                         fileSize: sizeStr,
-                                        fileData: data.fileData || '',
                                         sanitizedFileData: data.sanitizedFileData || '',
+                                        sanitizedFilePath: data.sanitizedFilePath || '',
                                         scanResults: sr,
                                     };
                                 });
@@ -210,6 +210,20 @@
             const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
             const handleDownload = (file) => {
+                // If a sanitized file exists on the server in original format, download it
+                if (file.sanitizedFilePath) {
+                    const link = document.createElement('a');
+                    link.href = 'http://localhost:5000/api/download-sanitized/' + file.id;
+                    link.download = '';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setDownloadLog(prev => [{ fileName: file.fileName, time: new Date().toLocaleTimeString() }, ...prev]);
+                    setDownloadToast(file.fileName);
+                    setTimeout(() => setDownloadToast(null), 2500);
+                    return;
+                }
+                // Fallback: download sanitized text content
                 const content = file.sanitizedFileData || (file.scanResults && file.scanResults.masked_text) || '';
                 if (!content) {
                     alert('No sanitized content available for this file.');
@@ -451,7 +465,14 @@
                                             </div>
                                         );
                                         return (
-                                            <div className="bg-slate-900 rounded-xl p-4 max-h-[60vh] overflow-y-auto">
+                                            <React.Fragment>
+                                                {['DOCX','PDF','XLSX'].includes(previewFile.fileType) && previewFile.sanitizedFilePath ? (
+                                                    <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl flex items-center gap-2">
+                                                        <svg className="h-4 w-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                        <span className="text-xs font-medium text-blue-700">{"Text preview shown below. Download the file for the full formatted " + previewFile.fileType + " document."}</span>
+                                                    </div>
+                                                ) : null}
+                                                <div className="bg-slate-900 rounded-xl p-4 max-h-[60vh] overflow-y-auto">
                                                 <pre className="text-sm text-slate-300 font-mono leading-relaxed whitespace-pre-wrap">{content.split('[REDACTED').map((part, i) => {
                                                     if (i === 0) return part;
                                                     const endIdx = part.indexOf(']');
@@ -460,6 +481,7 @@
                                                     return <span key={i}><span className="bg-red-500/20 text-red-400 px-1 rounded font-bold border border-red-500/30">{tag}</span>{rest}</span>;
                                                 })}</pre>
                                             </div>
+                                            </React.Fragment>
                                         );
                                     })()}
                                 </div>

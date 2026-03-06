@@ -91,27 +91,41 @@ def preprocess_image(filepath: str):
 
 def extract_text_from_image(filepath: str) -> str:
     """
-    Extract text from an image using Tesseract OCR.
-    
-    Applies preprocessing first, then runs Tesseract with
-    optimized configuration for document/ID card text.
+    Extract text from an image using Tesseract OCR, falling back to EasyOCR
+    if Tesseract is not installed.
     """
-    import pytesseract
-    from config import TESSERACT_CMD
+    # Try Tesseract first
+    _tess_err = None
+    try:
+        import pytesseract
+        from config import TESSERACT_CMD
 
-    # Configure Tesseract path if specified
-    if TESSERACT_CMD:
-        pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
+        if TESSERACT_CMD:
+            pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
 
-    preprocessed = preprocess_image(filepath)
+        preprocessed = preprocess_image(filepath)
+        custom_config = r"--oem 3 --psm 6"
+        text = pytesseract.image_to_string(preprocessed, config=custom_config)
+        logger.info("OCR (Tesseract) extracted %d characters from %s", len(text), os.path.basename(filepath))
+        return text.strip()
+    except Exception as tess_err:
+        _tess_err = tess_err
+        logger.warning("Tesseract unavailable (%s), trying EasyOCR...", tess_err)
 
-    # Use PSM 6 (single block of text) — good for most documents
-    # OEM 3 = default, uses LSTM neural net
-    custom_config = r"--oem 3 --psm 6"
-    text = pytesseract.image_to_string(preprocessed, config=custom_config)
-
-    logger.info("OCR extracted %d characters from %s", len(text), os.path.basename(filepath))
-    return text.strip()
+    # Fallback: EasyOCR (pure Python, no system binary needed)
+    try:
+        import easyocr
+        reader = easyocr.Reader(["en"], gpu=False, verbose=False)
+        results = reader.readtext(filepath, detail=0)
+        text = "\n".join(results)
+        logger.info("OCR (EasyOCR) extracted %d characters from %s", len(text), os.path.basename(filepath))
+        return text.strip()
+    except Exception as easy_err:
+        logger.error("EasyOCR also failed: %s", easy_err)
+        raise RuntimeError(
+            f"No OCR engine available. Install Tesseract or easyocr. "
+            f"Tesseract error: {_tess_err}, EasyOCR error: {easy_err}"
+        )
 
 
 def process_image_for_pii(

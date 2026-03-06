@@ -1622,5 +1622,549 @@
     "details": "Threat level: CRITICAL (score: 200.1)",
     "prev_hash": "6360adeefec9ef8000656810c009c07c0b2b17fbe7a2d3fd86cbf04b9016f26d",
     "entry_hash": "00073cd413701c27355bef1cc3963f1a1a6ed72922233ccdcbc4669c2b0004e1"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:18.613520+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (11 chars)",
+    "prev_hash": "00073cd413701c27355bef1cc3963f1a1a6ed72922233ccdcbc4669c2b0004e1",
+    "entry_hash": "0b7a4026b27e05ac63a57bd91c2f05124152e5b6038caeb2c628367ddeb38754"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:19.013760+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 1 entities, threat=LOW",
+    "prev_hash": "0b7a4026b27e05ac63a57bd91c2f05124152e5b6038caeb2c628367ddeb38754",
+    "entry_hash": "a6d95fc63d7e202bc4a16674a084e50ccb61f8b7fec07b5db633d3e39709f498"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:19.025859+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (41 chars)",
+    "prev_hash": "a6d95fc63d7e202bc4a16674a084e50ccb61f8b7fec07b5db633d3e39709f498",
+    "entry_hash": "524069c595319db33f9e8863c21b970bd9b581e3b4bbd614151c9bc0c1560294"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:19.052965+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 0 entities, threat=LOW",
+    "prev_hash": "524069c595319db33f9e8863c21b970bd9b581e3b4bbd614151c9bc0c1560294",
+    "entry_hash": "6f2904cba779554057fd8618088dd2fa5c9b27f6b983c8c8acb972adb9b04ee4"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:19.066690+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (180 chars)",
+    "prev_hash": "6f2904cba779554057fd8618088dd2fa5c9b27f6b983c8c8acb972adb9b04ee4",
+    "entry_hash": "8832f42adbfa09c41d5081f283f274b9bdfe9db0bf788c3ff0b7d02ad4589ce1"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:19.182458+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 11 entities, threat=MEDIUM",
+    "prev_hash": "8832f42adbfa09c41d5081f283f274b9bdfe9db0bf788c3ff0b7d02ad4589ce1",
+    "entry_hash": "a4170c33d970f5b14fbcc5e47d876eb97e8696892d3014e8bde87a6ac93d8716"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:19.195256+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (99 chars)",
+    "prev_hash": "a4170c33d970f5b14fbcc5e47d876eb97e8696892d3014e8bde87a6ac93d8716",
+    "entry_hash": "439eeacf5178fdcaabd606981dc51d8fa344af7768b538ffdaa9985375779067"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:19.358300+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 8 entities, threat=MEDIUM",
+    "prev_hash": "439eeacf5178fdcaabd606981dc51d8fa344af7768b538ffdaa9985375779067",
+    "entry_hash": "0aeab2fd9a40a8327098b2f3ed06b7e1c2e72e0173fe95e803871f0008ed7c35"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:19.372470+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (102 chars)",
+    "prev_hash": "0aeab2fd9a40a8327098b2f3ed06b7e1c2e72e0173fe95e803871f0008ed7c35",
+    "entry_hash": "df2d59ee1d7308b2942011683ad0c2f5a722fb1486370686be2158d8fa87b827"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:19.413601+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 1 entities, threat=LOW",
+    "prev_hash": "df2d59ee1d7308b2942011683ad0c2f5a722fb1486370686be2158d8fa87b827",
+    "entry_hash": "37392759e9df66000d1d45e007c2f171fad446bd516d5e153bb22536fe9fe3be"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:19.453768+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: 7KPsjhdADyJ4f20piAau_hackmind.docx",
+    "prev_hash": "37392759e9df66000d1d45e007c2f171fad446bd516d5e153bb22536fe9fe3be",
+    "entry_hash": "481838d3e6ab27de90e848871d2029e35aa5bf25e2d82e0a453a4d3352297cd1"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:19.475042+00:00",
+    "user": "admin",
+    "action": "EXTRACT",
+    "details": "Extracted 437 chars from 7KPsjhdADyJ4f20piAau_hackmind.docx",
+    "prev_hash": "481838d3e6ab27de90e848871d2029e35aa5bf25e2d82e0a453a4d3352297cd1",
+    "entry_hash": "eee2d709a59816e427df469c9df09430572cedea13ecf4d6d3841f5d17858d9f"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:19.566397+00:00",
+    "user": "admin",
+    "action": "ANALYZE",
+    "details": "Detected 19 PII entities in 7KPsjhdADyJ4f20piAau_hackmind.docx",
+    "prev_hash": "eee2d709a59816e427df469c9df09430572cedea13ecf4d6d3841f5d17858d9f",
+    "entry_hash": "ad79f1ff0a04dcfc94d6ccf678107f01779d724f25a76f7a06a5bcff1703daa5"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:19.582281+00:00",
+    "user": "admin",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for 7KPsjhdADyJ4f20piAau_hackmind.docx",
+    "prev_hash": "ad79f1ff0a04dcfc94d6ccf678107f01779d724f25a76f7a06a5bcff1703daa5",
+    "entry_hash": "5dac708780e212a7c5068c0c3218e0d0fa9ca4320f9da9fca9d14695e6d3bf49"
+  },
+  {
+    "timestamp": "2026-03-06T11:17:19.592483+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "Threat level: HIGH (score: 49.25)",
+    "prev_hash": "5dac708780e212a7c5068c0c3218e0d0fa9ca4320f9da9fca9d14695e6d3bf49",
+    "entry_hash": "6b204fa80c19417e39f12810c2a01ccdd5d22d9cccb2cddc99f140a676c2188c"
+  },
+  {
+    "timestamp": "2026-03-06T11:23:57.292434+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (64 chars)",
+    "prev_hash": "6b204fa80c19417e39f12810c2a01ccdd5d22d9cccb2cddc99f140a676c2188c",
+    "entry_hash": "cd6b081ac294e92544cfddcbe1930337aaebd26948b4fa3c659c51fd21243b46"
+  },
+  {
+    "timestamp": "2026-03-06T11:23:57.748089+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 5 entities, threat=MEDIUM",
+    "prev_hash": "cd6b081ac294e92544cfddcbe1930337aaebd26948b4fa3c659c51fd21243b46",
+    "entry_hash": "d66725790cbf935cc8ee5ff7e7fa9688e5c83efcb3a5babaa5a3efe5aad9dd54"
+  },
+  {
+    "timestamp": "2026-03-06T11:23:57.759836+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (46 chars)",
+    "prev_hash": "d66725790cbf935cc8ee5ff7e7fa9688e5c83efcb3a5babaa5a3efe5aad9dd54",
+    "entry_hash": "7fb6624d2d4d68e204ba92bb37e49c442301c964b96cd2cdf8a73e9cc7eb36fe"
+  },
+  {
+    "timestamp": "2026-03-06T11:23:57.788028+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 3 entities, threat=LOW",
+    "prev_hash": "7fb6624d2d4d68e204ba92bb37e49c442301c964b96cd2cdf8a73e9cc7eb36fe",
+    "entry_hash": "345f026a88b150736a5d82ccfab87065b60d4aa5e14146abce50c3898a9e5b47"
+  },
+  {
+    "timestamp": "2026-03-06T11:23:57.895417+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: test_docx_001_test_pii.docx",
+    "prev_hash": "345f026a88b150736a5d82ccfab87065b60d4aa5e14146abce50c3898a9e5b47",
+    "entry_hash": "c41be0b78978c934cc2469dfb3756198ae3bfc28e55d56fd1a63410de5b93873"
+  },
+  {
+    "timestamp": "2026-03-06T11:23:57.922609+00:00",
+    "user": "admin",
+    "action": "EXTRACT",
+    "details": "Extracted 111 chars from test_docx_001_test_pii.docx",
+    "prev_hash": "c41be0b78978c934cc2469dfb3756198ae3bfc28e55d56fd1a63410de5b93873",
+    "entry_hash": "a9296d05d02ef50acc9bcb2bd7cd5decce14e768e42c35d8be61548aea83bc63"
+  },
+  {
+    "timestamp": "2026-03-06T11:23:57.961741+00:00",
+    "user": "admin",
+    "action": "ANALYZE",
+    "details": "Detected 8 PII entities in test_docx_001_test_pii.docx",
+    "prev_hash": "a9296d05d02ef50acc9bcb2bd7cd5decce14e768e42c35d8be61548aea83bc63",
+    "entry_hash": "77cd2c551f4b27d8e29b4008679ec2fc83a2c6a6779b9badd37f85b16501a934"
+  },
+  {
+    "timestamp": "2026-03-06T11:23:57.982702+00:00",
+    "user": "admin",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for test_docx_001_test_pii.docx",
+    "prev_hash": "77cd2c551f4b27d8e29b4008679ec2fc83a2c6a6779b9badd37f85b16501a934",
+    "entry_hash": "8ac90a30dd2b4ad7afd1f00f8c474eba096ec4dbf9532e502aa15c8a281c3324"
+  },
+  {
+    "timestamp": "2026-03-06T11:23:57.994820+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "Threat level: MEDIUM (score: 21.2)",
+    "prev_hash": "8ac90a30dd2b4ad7afd1f00f8c474eba096ec4dbf9532e502aa15c8a281c3324",
+    "entry_hash": "1dfbec97ae1da57efed2886cb3055807be37549824841238c559edca8f474c81"
+  },
+  {
+    "timestamp": "2026-03-06T11:37:58.847842+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (18 chars)",
+    "prev_hash": "1dfbec97ae1da57efed2886cb3055807be37549824841238c559edca8f474c81",
+    "entry_hash": "e2b101a8bd8d86b3087796eb7722938eac108af110b9b5a5e8b236f8aa0fb6f4"
+  },
+  {
+    "timestamp": "2026-03-06T11:37:59.168152+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 1 entities, threat=LOW",
+    "prev_hash": "e2b101a8bd8d86b3087796eb7722938eac108af110b9b5a5e8b236f8aa0fb6f4",
+    "entry_hash": "86dca6fbc46cad34630a41c33ac4254aa8f3da9207ba4833ff8d42588e4961d0"
+  },
+  {
+    "timestamp": "2026-03-06T11:37:59.179123+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (25 chars)",
+    "prev_hash": "86dca6fbc46cad34630a41c33ac4254aa8f3da9207ba4833ff8d42588e4961d0",
+    "entry_hash": "e3696f1738ef68e0382d389649584452be1de0749d87a582fe3a87658a442fc2"
+  },
+  {
+    "timestamp": "2026-03-06T11:37:59.245800+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 3 entities, threat=LOW",
+    "prev_hash": "e3696f1738ef68e0382d389649584452be1de0749d87a582fe3a87658a442fc2",
+    "entry_hash": "96ee79945a3e2809f375e8be77b7f89fce7159b438f5178fcb40ce3d9bd98899"
+  },
+  {
+    "timestamp": "2026-03-06T11:37:59.256612+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (17 chars)",
+    "prev_hash": "96ee79945a3e2809f375e8be77b7f89fce7159b438f5178fcb40ce3d9bd98899",
+    "entry_hash": "2417048385d07749b32f1e415cdfe8e323a129709023da743c9f0b9ed3200fd8"
+  },
+  {
+    "timestamp": "2026-03-06T11:37:59.338745+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 1 entities, threat=LOW",
+    "prev_hash": "2417048385d07749b32f1e415cdfe8e323a129709023da743c9f0b9ed3200fd8",
+    "entry_hash": "e3ae48a2291948e380b5965b05581d4bc3cc92503bb09441bd7a7f09081f2028"
+  },
+  {
+    "timestamp": "2026-03-06T11:37:59.351011+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (16 chars)",
+    "prev_hash": "e3ae48a2291948e380b5965b05581d4bc3cc92503bb09441bd7a7f09081f2028",
+    "entry_hash": "31d6f1d9dede1913f0db7688ebebda6ff2722e1af48c7f82e06e6e40096f3c23"
+  },
+  {
+    "timestamp": "2026-03-06T11:37:59.379687+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 0 entities, threat=LOW",
+    "prev_hash": "31d6f1d9dede1913f0db7688ebebda6ff2722e1af48c7f82e06e6e40096f3c23",
+    "entry_hash": "5ba7342b274fd460ca42f97ff018b50382b517b52144981dd503d6cb304d861e"
+  },
+  {
+    "timestamp": "2026-03-06T11:37:59.491377+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: test_docx_123_test.docx",
+    "prev_hash": "5ba7342b274fd460ca42f97ff018b50382b517b52144981dd503d6cb304d861e",
+    "entry_hash": "31d16f7a84ee30559cb4863af8c2249e040852abef8455eda0e600047dc5eb67"
+  },
+  {
+    "timestamp": "2026-03-06T11:37:59.518717+00:00",
+    "user": "admin",
+    "action": "EXTRACT",
+    "details": "Extracted 79 chars from test_docx_123_test.docx",
+    "prev_hash": "31d16f7a84ee30559cb4863af8c2249e040852abef8455eda0e600047dc5eb67",
+    "entry_hash": "ac4189f820340c7547657f5bcd5260ac37863a9b493a418737ef439d0e73a284"
+  },
+  {
+    "timestamp": "2026-03-06T11:37:59.551099+00:00",
+    "user": "admin",
+    "action": "ANALYZE",
+    "details": "Detected 4 PII entities in test_docx_123_test.docx",
+    "prev_hash": "ac4189f820340c7547657f5bcd5260ac37863a9b493a418737ef439d0e73a284",
+    "entry_hash": "d9440feaf17d01c34fbfcfedb40f6cb5c336cae4e44dce521222a772e549a02b"
+  },
+  {
+    "timestamp": "2026-03-06T11:37:59.561453+00:00",
+    "user": "admin",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for test_docx_123_test.docx",
+    "prev_hash": "d9440feaf17d01c34fbfcfedb40f6cb5c336cae4e44dce521222a772e549a02b",
+    "entry_hash": "46d5d7fcd03e9d6062e2584cfa2e25f7e5bd7da7c6750dd39a03b4c5ca5f9f83"
+  },
+  {
+    "timestamp": "2026-03-06T11:37:59.569977+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "Threat level: MEDIUM (score: 11.7)",
+    "prev_hash": "46d5d7fcd03e9d6062e2584cfa2e25f7e5bd7da7c6750dd39a03b4c5ca5f9f83",
+    "entry_hash": "b01bb0b3b9dcf03dc54fdc4959a5521165937deefd6dbe04ea5e544e76dd1716"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.111837+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (11 chars)",
+    "prev_hash": "b01bb0b3b9dcf03dc54fdc4959a5521165937deefd6dbe04ea5e544e76dd1716",
+    "entry_hash": "e2a09950bfdf2122a3c8de6954304fb76113fb4725e9f5f854d0761817a2f484"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.148108+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 1 entities, threat=LOW",
+    "prev_hash": "e2a09950bfdf2122a3c8de6954304fb76113fb4725e9f5f854d0761817a2f484",
+    "entry_hash": "1c0e388399d9674fd562c8e52fc87f400c59cc8dafc0fcf7bb7f64315578941c"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.161008+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (41 chars)",
+    "prev_hash": "1c0e388399d9674fd562c8e52fc87f400c59cc8dafc0fcf7bb7f64315578941c",
+    "entry_hash": "eee9701738368ec4430f2901ea4fe502149d4e74c67ff0b77e34ddd922664e62"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.193604+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 0 entities, threat=LOW",
+    "prev_hash": "eee9701738368ec4430f2901ea4fe502149d4e74c67ff0b77e34ddd922664e62",
+    "entry_hash": "8acb247711ea9de8d7c43d31a7a95c97d6de8a401ba00bb07b0e68b72c44fb96"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.208655+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (180 chars)",
+    "prev_hash": "8acb247711ea9de8d7c43d31a7a95c97d6de8a401ba00bb07b0e68b72c44fb96",
+    "entry_hash": "50576a5c6531461e2bc17aa3bb4829f2856f09b23007754baaf90cb1875cf184"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.265432+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 11 entities, threat=MEDIUM",
+    "prev_hash": "50576a5c6531461e2bc17aa3bb4829f2856f09b23007754baaf90cb1875cf184",
+    "entry_hash": "e8e5e84b1f0f4a4191d1e0090ce9fb0253cc99e462e7f9bb70c0e3fbaa49d53c"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.278509+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (99 chars)",
+    "prev_hash": "e8e5e84b1f0f4a4191d1e0090ce9fb0253cc99e462e7f9bb70c0e3fbaa49d53c",
+    "entry_hash": "2193702fa138921833bca7818e5fbebcb119db944ac5aa794d04102f54c87602"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.315129+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 8 entities, threat=MEDIUM",
+    "prev_hash": "2193702fa138921833bca7818e5fbebcb119db944ac5aa794d04102f54c87602",
+    "entry_hash": "a2db85580ed28c40fa42f1626ae169d72e4af070aa7d765e911005a16714fc62"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.330027+00:00",
+    "user": "system",
+    "action": "INPUT",
+    "details": "Direct text input: handler_input (102 chars)",
+    "prev_hash": "a2db85580ed28c40fa42f1626ae169d72e4af070aa7d765e911005a16714fc62",
+    "entry_hash": "b6c4a359e16560f3443eb86d6bfd1207fd20cec16dcef5e675debded0171d41b"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.367598+00:00",
+    "user": "system",
+    "action": "ANALYZE",
+    "details": "Text analysis complete: 1 entities, threat=LOW",
+    "prev_hash": "b6c4a359e16560f3443eb86d6bfd1207fd20cec16dcef5e675debded0171d41b",
+    "entry_hash": "23fc920c0bc743687454a9419366397e64bd68c5d7404da885300f62eba05562"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.448090+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: dtd5d0YyDf27y86lRW6u_hackmind.docx",
+    "prev_hash": "23fc920c0bc743687454a9419366397e64bd68c5d7404da885300f62eba05562",
+    "entry_hash": "7c6866081c20d48a35485e240b60c7332f7510b6a07bd1cae935105fc2735d25"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.469533+00:00",
+    "user": "admin",
+    "action": "EXTRACT",
+    "details": "Extracted 437 chars from dtd5d0YyDf27y86lRW6u_hackmind.docx",
+    "prev_hash": "7c6866081c20d48a35485e240b60c7332f7510b6a07bd1cae935105fc2735d25",
+    "entry_hash": "0c9834b3be0fc8ae33dd8f95eccd65eef55cf2b5a64ac6eacf326937cde34f61"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.544361+00:00",
+    "user": "admin",
+    "action": "ANALYZE",
+    "details": "Detected 19 PII entities in dtd5d0YyDf27y86lRW6u_hackmind.docx",
+    "prev_hash": "0c9834b3be0fc8ae33dd8f95eccd65eef55cf2b5a64ac6eacf326937cde34f61",
+    "entry_hash": "90d7b7db21def677a22991ef70611df01b6505472541a94f0c613ad498fb4178"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.560982+00:00",
+    "user": "admin",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for dtd5d0YyDf27y86lRW6u_hackmind.docx",
+    "prev_hash": "90d7b7db21def677a22991ef70611df01b6505472541a94f0c613ad498fb4178",
+    "entry_hash": "e0fbaec83aedad6d24d5335062df110d976652f8f291f5c88360a1709fa94c17"
+  },
+  {
+    "timestamp": "2026-03-06T11:58:39.572392+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "Threat level: HIGH (score: 49.25)",
+    "prev_hash": "e0fbaec83aedad6d24d5335062df110d976652f8f291f5c88360a1709fa94c17",
+    "entry_hash": "881a29f98d674027647402bfa9d3d2c193daa9897286501a5b1aafe62bcda1d1"
+  },
+  {
+    "timestamp": "2026-03-06T12:03:50.043782+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: vMHkropVyL3bASLtyHrS_Screenshot_2026-03-06_173324.png",
+    "prev_hash": "881a29f98d674027647402bfa9d3d2c193daa9897286501a5b1aafe62bcda1d1",
+    "entry_hash": "31738b86a12364157ee6627a53492fc76a933090ad00d83400f86220174b6e87"
+  },
+  {
+    "timestamp": "2026-03-06T12:24:35.327964+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: test_img_001_test_pii.png",
+    "prev_hash": "31738b86a12364157ee6627a53492fc76a933090ad00d83400f86220174b6e87",
+    "entry_hash": "b65f696d6588765fcfa9710ae8bf603ab7ebdbd8246b6b4f031cda9a685c7100"
+  },
+  {
+    "timestamp": "2026-03-06T12:24:39.500495+00:00",
+    "user": "admin",
+    "action": "EXTRACT",
+    "details": "Extracted 84 chars from test_img_001_test_pii.png",
+    "prev_hash": "b65f696d6588765fcfa9710ae8bf603ab7ebdbd8246b6b4f031cda9a685c7100",
+    "entry_hash": "e9ffaaa7072d2d30dd0def3f8b51b8e8edf1fb04299a2280e0a49230001b7e4b"
+  },
+  {
+    "timestamp": "2026-03-06T12:24:39.869352+00:00",
+    "user": "admin",
+    "action": "ANALYZE",
+    "details": "Detected 3 PII entities in test_img_001_test_pii.png",
+    "prev_hash": "e9ffaaa7072d2d30dd0def3f8b51b8e8edf1fb04299a2280e0a49230001b7e4b",
+    "entry_hash": "1bc70e5bf1c678fec2b95fc3e90672b9db68bc2f6670bb5a9127a4a6bb12aedb"
+  },
+  {
+    "timestamp": "2026-03-06T12:24:39.889879+00:00",
+    "user": "admin",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for test_img_001_test_pii.png",
+    "prev_hash": "1bc70e5bf1c678fec2b95fc3e90672b9db68bc2f6670bb5a9127a4a6bb12aedb",
+    "entry_hash": "a87c89a13b3bb256b5620b479f1823f03a51f7a27334858659b6d7c990ef9ae1"
+  },
+  {
+    "timestamp": "2026-03-06T12:24:39.896811+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "Threat level: LOW (score: 7.45)",
+    "prev_hash": "a87c89a13b3bb256b5620b479f1823f03a51f7a27334858659b6d7c990ef9ae1",
+    "entry_hash": "ec0c929374cb4e66327843d9c0cba0e5a2cb705e7fb7404d6ba0ff515173efa0"
+  },
+  {
+    "timestamp": "2026-03-06T12:25:08.348838+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: test_jpg_001_test_pii.jpg",
+    "prev_hash": "ec0c929374cb4e66327843d9c0cba0e5a2cb705e7fb7404d6ba0ff515173efa0",
+    "entry_hash": "19b63c6df0df4302657f67cd9e2a7293e31f7621754cbf895edc501ad4330c06"
+  },
+  {
+    "timestamp": "2026-03-06T12:25:12.289745+00:00",
+    "user": "admin",
+    "action": "EXTRACT",
+    "details": "Extracted 57 chars from test_jpg_001_test_pii.jpg",
+    "prev_hash": "19b63c6df0df4302657f67cd9e2a7293e31f7621754cbf895edc501ad4330c06",
+    "entry_hash": "217c4d62eef347c43e24cb608fa62fde7caab8f693c6c9ad8a2c1aab098c2c39"
+  },
+  {
+    "timestamp": "2026-03-06T12:25:12.317777+00:00",
+    "user": "admin",
+    "action": "ANALYZE",
+    "details": "Detected 1 PII entities in test_jpg_001_test_pii.jpg",
+    "prev_hash": "217c4d62eef347c43e24cb608fa62fde7caab8f693c6c9ad8a2c1aab098c2c39",
+    "entry_hash": "df51f5ea29fd6948b47665e293f12e2f604a22d51627d70c070b2b58cc93d5fd"
+  },
+  {
+    "timestamp": "2026-03-06T12:25:12.325669+00:00",
+    "user": "admin",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for test_jpg_001_test_pii.jpg",
+    "prev_hash": "df51f5ea29fd6948b47665e293f12e2f604a22d51627d70c070b2b58cc93d5fd",
+    "entry_hash": "745785793e31ca841f3d57cb6223df88a393733d1dbd23ce305e6b0dae2b7aa4"
+  },
+  {
+    "timestamp": "2026-03-06T12:25:12.333782+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "Threat level: LOW (score: 2.0)",
+    "prev_hash": "745785793e31ca841f3d57cb6223df88a393733d1dbd23ce305e6b0dae2b7aa4",
+    "entry_hash": "719fc4afa21489796ecdf7345f7d12fa0f03d886409b430a2e48e1a33bce2dc1"
+  },
+  {
+    "timestamp": "2026-03-06T12:28:05.598326+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: ZAz85drzXu6UnN11658B_Screenshot_2026-03-06_173324.png",
+    "prev_hash": "719fc4afa21489796ecdf7345f7d12fa0f03d886409b430a2e48e1a33bce2dc1",
+    "entry_hash": "a4570e3c63ef3710fc58ddd7c99455098df2a1377be569516fa68c5ab6962c4a"
+  },
+  {
+    "timestamp": "2026-03-06T12:28:12.040871+00:00",
+    "user": "admin",
+    "action": "EXTRACT",
+    "details": "Extracted 295 chars from ZAz85drzXu6UnN11658B_Screenshot_2026-03-06_173324.png",
+    "prev_hash": "a4570e3c63ef3710fc58ddd7c99455098df2a1377be569516fa68c5ab6962c4a",
+    "entry_hash": "00a28216f94f95d5f198fa0fa12aeab2be37c60f9acd966447499e4274f656ef"
+  },
+  {
+    "timestamp": "2026-03-06T12:28:12.105937+00:00",
+    "user": "admin",
+    "action": "ANALYZE",
+    "details": "Detected 9 PII entities in ZAz85drzXu6UnN11658B_Screenshot_2026-03-06_173324.png",
+    "prev_hash": "00a28216f94f95d5f198fa0fa12aeab2be37c60f9acd966447499e4274f656ef",
+    "entry_hash": "00bf5dbebe466a84284efdf53975c2f5dbed1817f08395de48a77868f6da3093"
+  },
+  {
+    "timestamp": "2026-03-06T12:28:12.117764+00:00",
+    "user": "admin",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for ZAz85drzXu6UnN11658B_Screenshot_2026-03-06_173324.png",
+    "prev_hash": "00bf5dbebe466a84284efdf53975c2f5dbed1817f08395de48a77868f6da3093",
+    "entry_hash": "827f80c5c81fc719f1a816d1a89d4145ab16cb7ebcbf7403709ba55d3be3c8ed"
+  },
+  {
+    "timestamp": "2026-03-06T12:28:12.126285+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "Threat level: MEDIUM (score: 22.05)",
+    "prev_hash": "827f80c5c81fc719f1a816d1a89d4145ab16cb7ebcbf7403709ba55d3be3c8ed",
+    "entry_hash": "b2130aeef54c0dc7461decabdadf990fa2c29e488a69aa9ef867624f77afcd54"
   }
 ]

@@ -183,6 +183,7 @@
                                 downloadURL: f.originalFileURL || '#',
                                 fileData: f.fileData || null,
                                 sanitizedFileData: f.sanitizedFileData || null,
+                                sanitizedFilePath: f.sanitizedFilePath || null,
                                 scanResults: f.scanResults || null
                             })));
                             setSanitizedFiles(all.filter(f => f.status === 'completed').map(f => ({
@@ -194,6 +195,7 @@
                                 downloadURL: f.sanitizedFileURL || f.originalFileURL || '#',
                                 fileData: f.fileData || null,
                                 sanitizedFileData: f.sanitizedFileData || null,
+                                sanitizedFilePath: f.sanitizedFilePath || null,
                                 scanResults: f.scanResults || null
                             })));
                         });
@@ -533,6 +535,12 @@
                                                 <span className="w-1 h-5 bg-emerald-500 rounded-full"></span>
                                                 Complete Sanitized File (PII Removed)
                                             </h3>
+                                            {['DOCX','PDF','XLSX'].includes(viewFile.fileType) && viewFile.sanitizedFilePath ? (
+                                                <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl flex items-center gap-2 mb-3">
+                                                    <svg className="h-4 w-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                    <span className="text-xs font-medium text-blue-700">{"Text preview shown below. Download the file for the full formatted " + viewFile.fileType + " document."}</span>
+                                                </div>
+                                            ) : null}
                                             <div className="bg-slate-900 text-green-400 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[60vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">
                                                 {(() => {
                                                     const content = (viewFile.scanResults && viewFile.scanResults.sanitizedFileData) || viewFile.sanitizedFileData || (viewFile.scanResults && viewFile.scanResults.masked_text) || '';
@@ -545,7 +553,13 @@
                                 </div>
 
                                 {/* Modal Footer */}
-                                <div className="border-t border-slate-200 p-4 flex justify-end shrink-0 bg-slate-50">
+                                <div className="border-t border-slate-200 p-4 flex justify-between items-center shrink-0 bg-slate-50">
+                                    {viewFile.sanitizedFilePath ? (
+                                        <a href={'http://localhost:5000/api/download-sanitized/' + viewFile.id} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all text-sm">
+                                            <Icons.DownloadSm />
+                                            Download Sanitized File
+                                        </a>
+                                    ) : <div></div>}
                                     <button onClick={() => setViewFile(null)} className="px-6 py-2.5 bg-gradient-to-r from-deepblue to-cyan-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all text-sm">
                                         Close
                                     </button>

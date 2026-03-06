@@ -111,6 +111,9 @@ def _update_firestore_completed(doc_id, response):
             orig_data = response.get("original_text", "")
             if orig_data:
                 update_payload["fileData"] = orig_data[:500000]
+            san_path = response.get("sanitizedFilePath", "")
+            if san_path:
+                update_payload["sanitizedFilePath"] = os.path.basename(san_path)
             _firestore_client.collection("files").document(doc_id).update(update_payload)
             print(f"[SCAN] Firestore updated for {doc_id}")
         except Exception as fs_err:
@@ -413,6 +416,60 @@ def scan_status(doc_id):
     return jsonify(entry), 200
 
 
+@app.route("/api/download-sanitized/<doc_id>", methods=["GET"])
+def download_sanitized_file(doc_id):
+    """
+    Download the sanitized file in its original format (PDF, DOCX, etc.).
+    Looks up the sanitizedFilePath from Firestore or the in-memory cache,
+    then serves the file from sanitized_files/.
+    """
+    # Try in-memory cache first
+    san_filename = None
+    with _scan_results_lock:
+        entry = _scan_results.get(doc_id)
+        if entry:
+            sp = entry.get("sanitizedFilePath", "")
+            if sp:
+                san_filename = os.path.basename(sp)
+
+    # Try Firestore if not in cache
+    if not san_filename and _firestore_client:
+        try:
+            doc_ref = _firestore_client.collection("files").document(doc_id).get()
+            if doc_ref.exists:
+                san_filename = doc_ref.to_dict().get("sanitizedFilePath", "")
+        except Exception:
+            pass
+
+    if not san_filename:
+        return jsonify({"error": "Sanitized file not found"}), 404
+
+    san_path = os.path.join(SANITIZED_DIR, san_filename)
+    if not os.path.exists(san_path):
+        return jsonify({"error": "Sanitized file missing from server"}), 404
+
+    # Determine a user-friendly download name from the original filename
+    original_name = san_filename
+    # Try to get original name from Firestore
+    if _firestore_client:
+        try:
+            doc_ref = _firestore_client.collection("files").document(doc_id).get()
+            if doc_ref.exists:
+                original_name = doc_ref.to_dict().get("fileName", san_filename)
+        except Exception:
+            pass
+
+    name, orig_ext = os.path.splitext(original_name)
+    san_ext = os.path.splitext(san_filename)[1]
+    download_name = f"{name}_sanitized{san_ext or orig_ext}"
+
+    return send_file(
+        san_path,
+        as_attachment=True,
+        download_name=download_name,
+    )
+
+
 def _background_scan(file_url, file_name, doc_id, ext, local_path=None):
     """Background thread: scan a file for PII. File is either already on disk (local_path) or downloaded from file_url."""
     import time as _time
@@ -461,10 +518,15 @@ def _background_scan(file_url, file_name, doc_id, ext, local_path=None):
                     text_content, twelve_digit_mode="ignore",
                     name_mode="redact", min_score=0.3,
                 )
+                # Save sanitized text file to disk
+                table_san_path = os.path.join(SANITIZED_DIR, f"{doc_id}_sanitized{ext}")
+                with open(table_san_path, "w", encoding="utf-8") as sf:
+                    sf.write(sanitized)
                 response = {
                     "masked_text": sanitized,
                     "sanitizedFileData": sanitized,
                     "original_text": original_text,
+                    "sanitizedFilePath": table_san_path,
                     "entities": [],
                     "entity_count": 0,
                     "threat_level": "LOW",
@@ -478,16 +540,85 @@ def _background_scan(file_url, file_name, doc_id, ext, local_path=None):
                 print(f"[SCAN] Completed (table): {file_name}")
                 return
 
+        # ---- SQL file handling (INSERT-aware sanitization) ----
+        if ext == ".sql":
+            _check_timeout("pre-sql")
+            p = get_pipeline()
+            result = p.process_document(tmp_path, user="admin")
+            _check_timeout("sql-analysis")
+
+            # Read full sanitized SQL content from the file produced by _process_sql
+            sql_san_src = result.get("sanitized_sql_path", "")
+            full_sanitized_sql = ""
+            sql_dest = ""
+            if sql_san_src and os.path.exists(sql_san_src):
+                with open(sql_san_src, "r", encoding="utf-8") as sf:
+                    full_sanitized_sql = sf.read()
+                # Copy to sanitized_files/ with doc_id naming
+                import shutil
+                sql_dest = os.path.join(SANITIZED_DIR, f"{doc_id}_sanitized.sql")
+                shutil.copy2(sql_san_src, sql_dest)
+
+            response = {
+                "masked_text": full_sanitized_sql,
+                "sanitizedFileData": full_sanitized_sql,
+                "original_text": original_text,
+                "sanitizedFilePath": sql_dest,
+                "entities": result.get("entities", []),
+                "entity_count": len(result.get("entities", [])),
+                "threat_level": result.get("threat_report", {})
+                    .get("threat_assessment", {})
+                    .get("threat_level", "LOW"),
+                "risk_score": result.get("threat_report", {})
+                    .get("threat_assessment", {})
+                    .get("risk_score", 0),
+                "entity_breakdown": result.get("threat_report", {})
+                    .get("entity_breakdown", {}),
+                "recommended_actions": result.get("threat_report", {})
+                    .get("recommended_actions", []),
+            }
+            _update_firestore_completed(doc_id, response)
+            with _scan_results_lock:
+                _scan_results[doc_id] = {"status": "completed", **response}
+            print(f"[SCAN] Completed (SQL): {file_name}, threat={response['threat_level']}")
+            return
+
         # ---- Produce sanitized file via file_handlers ----
         sanitized_path = None
         try:
             if ext in HANDLERS:
                 handler_result = process_file(tmp_path, SANITIZED_DIR, process_text_with_presidio)
                 sanitized_path = handler_result["output_path"]
+                # Rename to include doc_id for uniqueness
+                if sanitized_path and os.path.exists(sanitized_path):
+                    final_name = f"{doc_id}_sanitized{ext}"
+                    final_path = os.path.join(SANITIZED_DIR, final_name)
+                    try:
+                        os.replace(sanitized_path, final_path)
+                        sanitized_path = final_path
+                    except OSError:
+                        pass
                 print(f"[SCAN] Sanitized file written: {sanitized_path}")
         except Exception as handler_err:
             print(f"[SCAN] file_handlers error for {file_name}: {handler_err}")
             traceback.print_exc()
+
+        # ---- Image visual redaction (produces redacted image in original format) ----
+        if ext in (".png", ".jpg", ".jpeg") and not sanitized_path:
+            try:
+                from PIL import Image as PILImage
+                from presidio_image_redactor import ImageRedactorEngine
+                img_engine = ImageRedactorEngine()
+                pil_img = PILImage.open(tmp_path)
+                redacted_img = img_engine.redact(pil_img, fill=(0, 0, 0))
+                img_out_name = f"{doc_id}_sanitized{ext}"
+                sanitized_path = os.path.join(SANITIZED_DIR, img_out_name)
+                redacted_img.save(sanitized_path)
+                print(f"[SCAN] Image redacted: {sanitized_path}")
+            except ImportError:
+                print("[SCAN] presidio-image-redactor not installed — skipping image redaction")
+            except Exception as img_err:
+                print(f"[SCAN] Image redaction error: {img_err}")
 
         _check_timeout("pre-analysis")
 
@@ -513,6 +644,7 @@ def _background_scan(file_url, file_name, doc_id, ext, local_path=None):
             "masked_text": result.get("masked_text", ""),
             "sanitizedFileData": sanitized_file_data,
             "original_text": original_text,
+            "sanitizedFilePath": sanitized_path or "",
             "entities": result.get("entities", []),
             "entity_count": len(result.get("entities", [])),
             "threat_level": result.get("threat_report", {})

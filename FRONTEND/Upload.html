@@ -207,7 +207,10 @@
                                         threatLevel: data.scanResults ? data.scanResults.threat_level : null,
                                         entityCount: data.scanResults ? data.scanResults.entity_count : 0,
                                         scanResults: data.scanResults || null,
+                                        sanitizedFileData: data.sanitizedFileData || null,
+                                        sanitizedFilePath: data.sanitizedFilePath || null,
                                         fileUrl: data.fileUrl || null,
+                                        fileData: data.fileData || null,
                                         scanError: data.scanError || null,
                                     };
                                 });
@@ -362,6 +365,7 @@
                     });
 
                     // Polling fallback: check Flask /api/scan-status every 5s
+                    // Backend writes results to Firestore directly, so poll only settles listeners
                     const pollHandle = setInterval(async () => {
                         if (settled) return;
                         try {
@@ -369,28 +373,8 @@
                             const pollData = await pollResp.json();
                             if (pollData.status === 'completed') {
                                 console.log('Scan completed (poll) for', file.name);
-                                // Write results to Firestore from frontend
-                                await window.updateDoc(docReference, {
-                                    status: 'completed',
-                                    threatLevel: pollData.threat_level || 'LOW',
-                                    sanitizedFileData: pollData.sanitizedFileData || '',
-                                    fileData: pollData.original_text || '',
-                                    scanResults: {
-                                        threat_level: pollData.threat_level || 'LOW',
-                                        risk_score: pollData.risk_score || 0,
-                                        entity_count: pollData.entity_count || 0,
-                                        entity_breakdown: pollData.entity_breakdown || {},
-                                        entities: (pollData.entities || []).slice(0, 50),
-                                        masked_text: pollData.masked_text || '',
-                                        recommended_actions: pollData.recommended_actions || []
-                                    }
-                                }).catch(e => console.warn('Poll: Firestore write failed', e));
                                 settle();
                             } else if (pollData.status === 'error') {
-                                await window.updateDoc(docReference, {
-                                    status: 'error',
-                                    scanError: pollData.scanError || 'Processing failed'
-                                }).catch(() => {});
                                 settle();
                             }
                         } catch (_) { /* polling error, will retry */ }
@@ -462,26 +446,8 @@
                                 const pd = await pr.json();
                                 if (pd.status === 'completed') {
                                     clearInterval(retryPoll);
-                                    await window.updateDoc(docReference, {
-                                        status: 'completed',
-                                        threatLevel: pd.threat_level || 'LOW',
-                                        sanitizedFileData: pd.sanitizedFileData || '',
-                                        fileData: pd.original_text || '',
-                                        scanResults: {
-                                            threat_level: pd.threat_level || 'LOW',
-                                            risk_score: pd.risk_score || 0,
-                                            entity_count: pd.entity_count || 0,
-                                            entity_breakdown: pd.entity_breakdown || {},
-                                            entities: (pd.entities || []).slice(0, 50),
-                                            masked_text: pd.masked_text || '',
-                                            recommended_actions: pd.recommended_actions || []
-                                        }
-                                    }).catch(() => {});
                                 } else if (pd.status === 'error') {
                                     clearInterval(retryPoll);
-                                    await window.updateDoc(docReference, {
-                                        status: 'error', scanError: pd.scanError || 'Failed'
-                                    }).catch(() => {});
                                 }
                             } catch (_) {}
                         }, 5000);
@@ -835,14 +801,14 @@
                                     )}
 
                                     {/* Original & Sanitized Text - Dual View */}
-                                    {viewingResult.scanResults.masked_text && (
+                                    {(viewingResult.sanitizedFileData || viewingResult.scanResults.masked_text) && (
                                         <div>
                                             <div className="flex items-center gap-1 mb-3">
                                                 <span className="w-1 h-5 bg-emerald-500 rounded-full mr-1"></span>
                                                 <button onClick={() => setModalTab('sanitized')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${modalTab === 'sanitized' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Sanitized Output</button>
                                             </div>
                                             <div className="bg-slate-900 text-green-400 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap border border-slate-700">
-                                                {viewingResult.scanResults.masked_text || 'No sanitized output available.'}
+                                                {viewingResult.sanitizedFileData || viewingResult.scanResults.masked_text || 'No sanitized output available.'}
                                             </div>
                                         </div>
                                     )}
@@ -869,7 +835,13 @@
                                 </div>
 
                                 {/* Modal Footer */}
-                                <div className="border-t border-slate-200 p-4 flex justify-end shrink-0 bg-slate-50">
+                                <div className="border-t border-slate-200 p-4 flex justify-between items-center shrink-0 bg-slate-50">
+                                    {viewingResult.sanitizedFilePath ? (
+                                        <a href={'http://localhost:5000/api/download-sanitized/' + viewingResult.id} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all text-sm">
+                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                            Download Sanitized File
+                                        </a>
+                                    ) : <div></div>}
                                     <button onClick={() => setViewingResult(null)} className="px-6 py-2.5 bg-gradient-to-r from-deepblue to-cyan-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all text-sm">
                                         Close
                                     </button>
