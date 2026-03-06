@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PII Shield — Enterprise PII Detection</title>
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --success: #28a745;
+            --critical: #7c0a02;
+            --dark: #1e1e2f;
+            --light: #f8f9fa;
+            --card-bg: #ffffff;
+            --border: #dee2e6;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #1e1e2f 0%, #2d2d44 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1.5rem 2rem;
+            color: white;
+            text-align: center;
+            border-bottom: 2px solid var(--primary);
+        }
+        
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        
+        .header .subtitle {
+            opacity: 0.8;
+            font-size: 0.95rem;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+        
+        @media (max-width: 1024px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+        
+        .card-header {
+            background: var(--dark);
+            color: white;
+            padding: 1rem 1.5rem;
+            font-weight: 600;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .card-body {
+            padding: 1.5rem;
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 300px;
+            padding: 1rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #1557b0;
+            transform: translateY(-1px);
+        }
+        
+        .btn-primary:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .result-box {
+            background: #f4f6f8;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            min-height: 300px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-y: auto;
+        }
+        
+        .threat-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+        }
+        
+        .threat-LOW { background: var(--success); color: white; }
+        .threat-MEDIUM { background: var(--warning); color: #333; }
+        .threat-HIGH { background: var(--danger); color: white; }
+        .threat-CRITICAL { background: var(--critical); color: white; animation: pulse 1s infinite; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .stat-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .stat-label {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+        
+        .entity-list {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        
+        .entity-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .entity-item:last-child {
+            border-bottom: none;
+        }
+        
+        .entity-type {
+            font-weight: 600;
+            color: var(--primary);
+        }
+        
+        .entity-masked {
+            font-family: monospace;
+            background: #e9ecef;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        
+        .entity-confidence {
+            color: #666;
+            font-size: 0.85rem;
+        }
+        
+        .actions-list {
+            list-style: none;
+        }
+        
+        .actions-list li {
+            padding: 0.5rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+        
+        .actions-list li::before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-weight: bold;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .loading.active {
+            display: block;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .sample-btns {
+            margin-top: 0.5rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .sample-btn {
+            padding: 0.35rem 0.75rem;
+            font-size: 0.8rem;
+            background: #e9ecef;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .sample-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .encryption-badge {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 3px;
+            margin-left: 0.5rem;
+        }
+        
+        .encryption-AES { background: #6610f2; color: white; }
+        .encryption-FPE { background: #20c997; color: white; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>🛡️ PII Shield</h1>
+        <p class="subtitle">Enterprise PII Detection, Sanitization & Secure Storage — HACKAMINED Track</p>
+    </header>
+    
+    <div class="container">
+        <div class="grid">
+            <!-- Input Panel -->
+            <div class="card">
+                <div class="card-header">
+                    📝 Input Text
+                </div>
+                <div class="card-body">
+                    <textarea id="inputText" placeholder="Enter text containing PII to analyze...
+
+Example:
+Name: Rajesh Kumar
+Email: rajesh@example.com
+Phone: +91 9876543210
+Aadhaar: 2234 5678 9018
+PAN: ABCPK1234F
+Credit Card: 4111-1111-1111-1111"></textarea>
+                    
+                    <div class="sample-btns">
+                        <span style="font-size: 0.85rem; color: #666;">Load sample:</span>
+                        <button class="sample-btn" onclick="loadSample('employee')">Employee Record</button>
+                        <button class="sample-btn" onclick="loadSample('kyc')">KYC Document</button>
+                        <button class="sample-btn" onclick="loadSample('finance')">Financial Data</button>
+                        <button class="sample-btn" onclick="loadSample('table')" style="background: #6610f2; color: white;">📊 ASCII Table</button>
+                    </div>
+                    
+                    <!-- Table Mode Options (shown when table sample is loaded) -->
+                    <div id="tableModeOptions" class="hidden" style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+                        <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center;">
+                            <div>
+                                <label style="font-size: 0.85rem; color: #666;">12-Digit Numbers:</label>
+                                <select id="twelveDigitMode" style="padding: 0.35rem; border-radius: 4px; border: 1px solid #ccc;">
+                                    <option value="mask_last_4">Show last 4 (XXXX XXXX 1234)</option>
+                                    <option value="full_mask">Full mask (XXXX XXXX XXXX)</option>
+                                    <option value="redact">Redact ([REDACTED_AADHAAR])</option>
+                                    <option value="ignore">Ignore (no change)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.85rem; color: #666;">Names:</label>
+                                <select id="nameMode" style="padding: 0.35rem; border-radius: 4px; border: 1px solid #ccc;">
+                                    <option value="redact">Redact ([REDACTED_NAME])</option>
+                                    <option value="mask_first">Mask (A*****)</option>
+                                    <option value="hash">Hash (SHA-256)</option>
+                                </select>
+                            </div>
+                            <div style="font-size: 0.8rem; color: #28a745;">
+                                ✓ Table mode: Cell-by-cell processing preserves alignment
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="btn-group">
+                        <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeText()">
+                            🔍 Analyze PII
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearAll()">
+                            🗑️ Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Output Panel -->
+            <div class="card">
+                <div class="card-header">
+                    🔒 Masked Output (Safe for Analysts)
+                </div>
+                <div class="card-body">
+                    <div class="loading" id="loading">
+                        <div class="spinner"></div>
+                        <p>Analyzing text with Presidio + Custom Indian Recognizers...</p>
+                    </div>
+                    <div id="outputBox" class="result-box">Results will appear here after analysis...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Results Panel -->
+        <div id="resultsPanel" class="hidden" style="margin-top: 2rem;">
+            <div class="grid">
+                <!-- Threat Assessment -->
+                <div class="card">
+                    <div class="card-header">
+                        ⚠️ Threat Intelligence Report
+                    </div>
+                    <div class="card-body">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div id="threatLevel" class="threat-badge threat-LOW">LOW</div>
+                                <div class="stat-label">Threat Level</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="riskScore">0</div>
+                                <div class="stat-label">Risk Score</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="entityCount">0</div>
+                                <div class="stat-label">PII Entities</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="auditStatus">✓</div>
+                                <div class="stat-label">Audit Chain</div>
+                            </div>
+                        </div>
+                        
+                        <h4 style="margin-bottom: 0.75rem;">📋 Recommended Actions:</h4>
+                        <ul class="actions-list" id="actionsList">
+                            <li>No actions required</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Detected Entities -->
+                <div class="card">
+                    <div class="card-header">
+                        🏷️ Detected Entities
+                    </div>
+                    <div class="card-body">
+                        <div class="entity-list" id="entityList">
+                            <p style="color: #666; text-align: center;">No entities detected yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const samples = {
+            employee: `Employee Record — Confidential
+
+Name: Rajesh Kumar Sharma
+Email: rajesh.sharma@techcorp.in
+Phone: +91 9876543210
+Aadhaar: 2234 5678 9018
+PAN Card: ABCPK1234F
+Credit Card: 4111-1111-1111-1111
+
+Emergency Contact: Priya Sharma, priya.sharma@gmail.com
+Address: 42 MG Road, Bengaluru, Karnataka 560001
+
+Note: Employee ID EMP00451 and Roll Number 2345678901 are internal
+identifiers and should NOT be flagged as PII.`,
+            
+            kyc: `CONFIDENTIAL — Customer KYC Record
+
+Full Name: Ananya Krishnamurthy
+Date of Birth: 15-March-1990
+Email Address: ananya.krishnamurthy@securecorp.in
+Mobile Number: +91 9123456780
+Aadhaar Number: 2234 5678 9018
+PAN Card: BKMPK4567J
+
+Residential Address:
+  Flat 301, Sunrise Apartments
+  Indiranagar, Bengaluru
+  Karnataka — 560038
+
+Banking Details:
+  Account Type: Savings
+  Credit Card: 4532-1234-5678-9012`,
+            
+            finance: `Transaction Details — Internal Use Only
+
+Customer: Vikram Singh
+Account Number: 1234567890
+Credit Card: 5500-0000-0000-0004
+Phone: +91 8877665544
+Email: vikram.singh@corporate.in
+
+Transaction ID: TXN20240315001
+Amount: ₹1,50,000.00
+Date: 15-March-2024
+
+Linked Aadhaar: 3345 6789 0126
+PAN: XYZPL5678G`,
+
+            table: `+------------------+------------------+------------------------+
+| Name             | Aadhaar Number   | Email                  |
++------------------+------------------+------------------------+
+| Ananya Kapoor    | 2234 5678 9018   | ananya@example.com     |
+| Rajesh Kumar     | 3345 6789 0126   | rajesh.kumar@corp.in   |
+| Vikram Singh     | 4456 7890 1233   | vikram@enterprise.com  |
+| Priya Sharma     | 223456789018     | priya.sharma@mail.com  |
++------------------+------------------+------------------------+
+
+Note: This ASCII table demonstrates:
+- Bug 1 fix: All Indian names are detected (Ananya Kapoor was missed before)
+- Bug 2 fix: All 12-digit numbers are handled consistently  
+- Bug 3 fix: Table alignment is preserved after sanitization`
+        };
+        
+        let isTableMode = false;
+        
+        function loadSample(type) {
+            document.getElementById('inputText').value = samples[type];
+            
+            // Toggle table mode options
+            const tableModeOptions = document.getElementById('tableModeOptions');
+            if (type === 'table') {
+                isTableMode = true;
+                tableModeOptions.classList.remove('hidden');
+            } else {
+                isTableMode = false;
+                tableModeOptions.classList.add('hidden');
+            }
+        }
+        
+        async function analyzeText() {
+            const text = document.getElementById('inputText').value.trim();
+            if (!text) {
+                alert('Please enter some text to analyze');
+                return;
+            }
+            
+            const btn = document.getElementById('analyzeBtn');
+            const loading = document.getElementById('loading');
+            const outputBox = document.getElementById('outputBox');
+            const resultsPanel = document.getElementById('resultsPanel');
+            
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Analyzing...';
+            loading.classList.add('active');
+            outputBox.classList.add('hidden');
+            resultsPanel.classList.add('hidden');
+            
+            try {
+                let response;
+                
+                if (isTableMode) {
+                    // Use table-specific endpoint with options
+                    const twelveDigitMode = document.getElementById('twelveDigitMode').value;
+                    const nameMode = document.getElementById('nameMode').value;
+                    
+                    response = await fetch('/analyze_table', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            text: text,
+                            twelve_digit_mode: twelveDigitMode,
+                            name_mode: nameMode
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        displayTableResults(data);
+                    } else {
+                        outputBox.textContent = 'Error: ' + (data.error || 'Unknown error');
+                        outputBox.classList.remove('hidden');
+                    }
+                } else {
+                    // Use standard endpoint
+                    response = await fetch('/analyze', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: text, user: 'web_user' })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        displayResults(data);
+                    } else {
+                        outputBox.textContent = 'Error: ' + (data.error || 'Unknown error');
+                        outputBox.classList.remove('hidden');
+                    }
+                }
+            } catch (error) {
+                outputBox.textContent = 'Connection error: ' + error.message;
+                outputBox.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🔍 Analyze PII';
+                loading.classList.remove('active');
+            }
+        }
+        
+        function displayTableResults(data) {
+            const outputBox = document.getElementById('outputBox');
+            const resultsPanel = document.getElementById('resultsPanel');
+            
+            // Show sanitized table
+            outputBox.textContent = data.sanitized_text;
+            outputBox.classList.remove('hidden');
+            
+            // Show simple stats for table mode
+            document.getElementById('threatLevel').textContent = 'TABLE';
+            document.getElementById('threatLevel').className = 'threat-badge';
+            document.getElementById('threatLevel').style.background = '#6610f2';
+            document.getElementById('riskScore').textContent = '-';
+            document.getElementById('entityCount').textContent = '-';
+            document.getElementById('auditStatus').textContent = '✓';
+            
+            // Update actions for table mode
+            const actionsList = document.getElementById('actionsList');
+            actionsList.innerHTML = `
+                <li>Table processed cell-by-cell (alignment preserved)</li>
+                <li>12-digit mode: ${data.twelve_digit_mode}</li>
+                <li>Name mode: ${data.name_mode}</li>
+            `;
+            
+            // Clear entity list for table mode
+            document.getElementById('entityList').innerHTML = 
+                '<p style="color: #6610f2; text-align: center; padding: 1rem;">📊 Table mode: entities processed per-cell</p>';
+            
+            resultsPanel.classList.remove('hidden');
+        }
+        
+        function displayResults(data) {
+            const outputBox = document.getElementById('outputBox');
+            const resultsPanel = document.getElementById('resultsPanel');
+            
+            // Show masked text
+            outputBox.textContent = data.masked_text;
+            outputBox.classList.remove('hidden');
+            
+            // Update threat level
+            const threatLevel = document.getElementById('threatLevel');
+            threatLevel.textContent = data.threat_level;
+            threatLevel.className = 'threat-badge threat-' + data.threat_level;
+            
+            // Update stats
+            document.getElementById('riskScore').textContent = data.risk_score.toFixed(1);
+            document.getElementById('entityCount').textContent = data.entity_count;
+            document.getElementById('auditStatus').textContent = data.audit_valid ? '✓' : '✗';
+            
+            // Update actions
+            const actionsList = document.getElementById('actionsList');
+            actionsList.innerHTML = data.recommended_actions
+                .map(action => `<li>${action}</li>`)
+                .join('');
+            
+            // Update entity list
+            const entityList = document.getElementById('entityList');
+            if (data.entities.length > 0) {
+                entityList.innerHTML = data.entities
+                    .map(e => {
+                        const encClass = e.encryption_method.includes('FPE') ? 'FPE' : 'AES';
+                        return `
+                            <div class="entity-item">
+                                <div>
+                                    <span class="entity-type">${e.type}</span>
+                                    <span class="encryption-badge encryption-${encClass}">${encClass}</span>
+                                </div>
+                                <div>
+                                    <span class="entity-masked">${escapeHtml(e.masked)}</span>
+                                    <span class="entity-confidence">${(e.confidence * 100).toFixed(0)}%</span>
+                                </div>
+                            </div>
+                        `;
+                    })
+                    .join('');
+            } else {
+                entityList.innerHTML = '<p style="color: #28a745; text-align: center; padding: 1rem;">✓ No PII detected</p>';
+            }
+            
+            resultsPanel.classList.remove('hidden');
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function clearAll() {
+            document.getElementById('inputText').value = '';
+            document.getElementById('outputBox').textContent = 'Results will appear here after analysis...';
+            document.getElementById('resultsPanel').classList.add('hidden');
+            document.getElementById('tableModeOptions').classList.add('hidden');
+            isTableMode = false;
+        }
+    </script>
+</body>
+</html>

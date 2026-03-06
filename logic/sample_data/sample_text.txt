@@ -1,0 +1,32 @@
+CONFIDENTIAL — Customer KYC Record
+
+Full Name: Ananya Krishnamurthy
+Date of Birth: 15-March-1990
+Email Address: ananya.krishnamurthy@securecorp.in
+Mobile Number: +91 9123456780
+Aadhaar Number: 2234 5678 9018
+PAN Card: BKMPK4567J
+
+Residential Address:
+  Flat 301, Sunrise Apartments
+  Indiranagar, Bengaluru
+  Karnataka — 560038
+
+Banking Details:
+  Account Type: Savings
+  Credit Card: 4532-1234-5678-9012
+  Debit Card: 5425-2334-3010-9903
+
+Emergency Contact:
+  Name: Suresh Krishnamurthy
+  Phone: +91 9876012345
+  Relation: Father
+
+Internal Reference:
+  Employee Code: EMP0098123
+  Roll Number: 2345678901
+  Transaction ID: TXN20240315001
+
+Note: The Employee Code, Roll Number, and Transaction ID above are
+internal identifiers and should NOT be detected as PII by the system.
+They are included to test false-positive rejection.
