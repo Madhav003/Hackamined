@@ -182,17 +182,18 @@
                                     const ext = (data.fileName || '').split('.').pop().toUpperCase();
                                     const ts = data.uploadTime ? (data.uploadTime.toDate ? data.uploadTime.toDate() : new Date(data.uploadTime)) : new Date();
                                     const sizeBytes = data.fileSize || 0;
-                                    // Determine risk level based on file size heuristic
-                                    const risk = sizeBytes > 500000 ? 'High' : sizeBytes > 100000 ? 'Medium' : 'Low';
+                                    const sr = data.scanResults || {};
+                                    const risk = sr.threat_level === 'HIGH' ? 'High' : sr.threat_level === 'MEDIUM' ? 'Medium' : 'Low';
                                     return {
                                         id: d.id,
                                         fileName: data.fileName || 'Unknown',
                                         uploadedBy: data.uploadedBy || 'Unknown',
                                         fileType: ext,
-                                        piiDetected: 0,
+                                        piiDetected: sr.entity_count || 0,
                                         scanDate: ts.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
                                         riskLevel: risk,
                                         fileData: data.fileData || '',
+                                        scanResults: sr,
                                     };
                                 });
                                 setFiles(list);
@@ -215,12 +216,20 @@
 
             const totalPii = files.reduce((sum, f) => sum + f.piiDetected, 0);
             const allPiiTypes = ['Email', 'Phone', 'Name', 'Address', 'ID Number'];
+            const allBreakdowns = {};
+            files.forEach(f => {
+                const bd = (f.scanResults || {}).entity_breakdown || {};
+                Object.entries(bd).forEach(([k, v]) => { allBreakdowns[k] = (allBreakdowns[k] || 0) + (v.count || v || 0); });
+            });
+            const mostCommon = Object.keys(allBreakdowns).length > 0
+                ? Object.entries(allBreakdowns).sort((a, b) => b[1] - a[1])[0]
+                : null;
 
             const stats = [
-                { label: 'Files with PII', value: files.length, icon: Icons.FilesLrg, color: 'blue' },
+                { label: 'Files with PII', value: files.filter(f => f.piiDetected > 0).length, icon: Icons.FilesLrg, color: 'blue' },
                 { label: 'Total PII Entities', value: totalPii, icon: Icons.ScanLrg, color: 'cyan' },
-                { label: 'Reports Generated', value: files.length * 3, icon: Icons.ReportLrg, color: 'emerald' },
-                { label: 'Most Common PII', value: 'N/A', icon: Icons.TagLrg, color: 'purple', sub: 'No PII scan data yet' },
+                { label: 'Scanned Files', value: files.length, icon: Icons.ReportLrg, color: 'emerald' },
+                { label: 'Most Common PII', value: mostCommon ? mostCommon[0].replace(/_/g, ' ') : 'N/A', icon: Icons.TagLrg, color: 'purple', sub: mostCommon ? mostCommon[1] + ' instances' : 'No PII scan data yet' },
             ];
 
             const filtered = useMemo(() => {
@@ -238,11 +247,46 @@
             const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
             const handleDownload = (file, format) => {
+                const sr = file.scanResults || {};
+                const entities = sr.entities || [];
+                let content, mimeType, ext;
+                if (format === 'CSV') {
+                    const header = 'Entity Type,Position,Confidence,Masked Value';
+                    const rows = entities.map(e => [e.type || '', e.position || '', e.confidence || '', e.masked || ''].join(','));
+                    content = [header, ...rows].join('\n');
+                    mimeType = 'text/csv;charset=utf-8';
+                    ext = 'csv';
+                } else if (format === 'JSON') {
+                    content = JSON.stringify({ fileName: file.fileName, scanDate: file.scanDate, riskLevel: file.riskLevel, entityCount: file.piiDetected, entityBreakdown: sr.entity_breakdown || {}, entities: entities }, null, 2);
+                    mimeType = 'application/json;charset=utf-8';
+                    ext = 'json';
+                } else {
+                    const lines = ['PII DETECTION REPORT', '='.repeat(50), '', 'File: ' + file.fileName, 'Scanned: ' + file.scanDate, 'Risk Level: ' + file.riskLevel, 'Total PII Entities: ' + file.piiDetected, '', 'Entity Breakdown:', ...Object.entries(sr.entity_breakdown || {}).map(([k, v]) => '  ' + k + ': ' + (v.count || v)), '', 'Detected Entities:', ...entities.map((e, i) => '  ' + (i + 1) + '. ' + (e.type || 'Unknown') + ' (confidence: ' + ((e.confidence || 0) * 1).toFixed(2) + ') → ' + (e.masked || '***'))];
+                    content = lines.join('\n');
+                    mimeType = 'text/plain;charset=utf-8';
+                    ext = 'txt';
+                }
+                const blob = new Blob([content], { type: mimeType });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = file.fileName.replace(/\.[^.]+$/, '') + '_pii_report.' + ext;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
                 setDownloadToast(file.fileName + ' (' + format + ')');
                 setTimeout(() => setDownloadToast(null), 2500);
             };
 
-            const modalEntities = [];
+            const modalEntities = modalFile && modalFile.scanResults && modalFile.scanResults.entities
+                ? modalFile.scanResults.entities.map(e => ({
+                    entityType: e.type || e.entity_type || 'Unknown',
+                    detectedValue: e.masked || e.text || '***',
+                    position: e.position || ((e.start || '?') + '-' + (e.end || '?')),
+                    confidence: Math.round((e.confidence || e.score || 0) * 100),
+                }))
+                : [];
 
             return (
                 <div className="flex h-screen w-full bg-slate-50 relative">

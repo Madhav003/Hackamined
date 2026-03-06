@@ -154,16 +154,18 @@
                                     const ts = data.uploadTime ? (data.uploadTime.toDate ? data.uploadTime.toDate() : new Date(data.uploadTime)) : new Date();
                                     const sizeBytes = data.fileSize || 0;
                                     const sizeStr = sizeBytes > 1024 * 1024 ? (sizeBytes / (1024 * 1024)).toFixed(1) + ' MB' : sizeBytes > 1024 ? (sizeBytes / 1024).toFixed(0) + ' KB' : sizeBytes + ' B';
+                                    const sr = data.scanResults || {};
                                     return {
                                         id: d.id,
                                         fileName: data.fileName || 'Unknown',
                                         fileType: ext,
                                         uploadedBy: data.uploadedBy || 'Unknown',
                                         sanitizedDate: ts.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-                                        piiRemoved: 0,
+                                        piiRemoved: sr.entity_count || 0,
                                         fileSize: sizeStr,
                                         fileData: data.fileData || '',
                                         sanitizedFileData: data.sanitizedFileData || '',
+                                        scanResults: sr,
                                     };
                                 });
                                 setDemoFiles(list);
@@ -182,11 +184,13 @@
                 { name: 'Statistical Analysis', icon: Icons.BarChart, href: 'UserStatisticalAnalysis.html' },
             ];
 
+            const totalPiiRemoved = demoFiles.reduce((sum, f) => sum + f.piiRemoved, 0);
+
             const stats = [
                 { label: 'Files Available', value: demoFiles.length, icon: Icons.FilesLrg, color: 'emerald' },
                 { label: 'Downloaded by You', value: downloadLog.length, icon: Icons.DownloadLrg, color: 'blue' },
-                { label: 'Recently Added', value: demoFiles.filter(f => f.sanitizedDate === '05 Mar 2026').length, icon: Icons.RecentLrg, color: 'cyan' },
-                { label: 'Latest Sanitization', value: '05 Mar', icon: Icons.ScanLrg, color: 'purple', sub: '2026' },
+                { label: 'Total PII Removed', value: totalPiiRemoved, icon: Icons.RecentLrg, color: 'cyan' },
+                { label: 'File Types', value: [...new Set(demoFiles.map(f => f.fileType))].length, icon: Icons.ScanLrg, color: 'purple' },
             ];
 
             const allTypes = [...new Set(demoFiles.map(f => f.fileType))];
@@ -206,15 +210,22 @@
             const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
             const handleDownload = (file) => {
-                const downloadData = file.sanitizedFileData || file.fileData;
-                if (downloadData) {
-                    const link = document.createElement('a');
-                    link.href = downloadData;
-                    link.download = file.fileName;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+                const content = file.sanitizedFileData || (file.scanResults && file.scanResults.masked_text) || '';
+                if (!content) {
+                    alert('No sanitized content available for this file.');
+                    return;
                 }
+                const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                const baseName = file.fileName.replace(/\.[^.]+$/, '');
+                const ext = file.fileName.split('.').pop();
+                link.download = baseName + '_sanitized.' + ext;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
                 setDownloadLog(prev => [{ fileName: file.fileName, time: new Date().toLocaleTimeString() }, ...prev]);
                 setDownloadToast(file.fileName);
                 setTimeout(() => setDownloadToast(null), 2500);
@@ -432,9 +443,25 @@
                                         <div className="bg-slate-50 p-3 rounded-xl"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Sanitized</p><p className="font-semibold text-slate-700">{previewFile.sanitizedDate}</p></div>
                                         <div className="bg-slate-50 p-3 rounded-xl"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">PII Removed</p><p className="font-semibold text-emerald-600">{previewFile.piiRemoved + " entities"}</p></div>
                                     </div>
-                                    <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-center">
-                                        <p className="text-xs font-semibold text-emerald-700">{"This file has been sanitized. All PII data has been securely removed."}</p>
-                                    </div>
+                                    {(() => {
+                                        const content = previewFile.sanitizedFileData || (previewFile.scanResults && previewFile.scanResults.masked_text) || '';
+                                        if (!content) return (
+                                            <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-center">
+                                                <p className="text-xs font-semibold text-emerald-700">{"Sanitized content not available. File may still be processing."}</p>
+                                            </div>
+                                        );
+                                        return (
+                                            <div className="bg-slate-900 rounded-xl p-4 max-h-[60vh] overflow-y-auto">
+                                                <pre className="text-sm text-slate-300 font-mono leading-relaxed whitespace-pre-wrap">{content.split('[REDACTED').map((part, i) => {
+                                                    if (i === 0) return part;
+                                                    const endIdx = part.indexOf(']');
+                                                    const tag = '[REDACTED' + part.substring(0, endIdx + 1);
+                                                    const rest = part.substring(endIdx + 1);
+                                                    return <span key={i}><span className="bg-red-500/20 text-red-400 px-1 rounded font-bold border border-red-500/30">{tag}</span>{rest}</span>;
+                                                })}</pre>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                                 <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex justify-end space-x-3">
                                     <button onClick={() => setPreviewFile(null)} className="px-5 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors">Close</button>

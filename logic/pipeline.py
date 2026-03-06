@@ -22,6 +22,7 @@ import os
 import sys
 
 from analyzer_engine import create_analyzer, create_anonymizer, analyze_text, anonymize_text
+from context_rules import apply_context_rules, truncate_for_processing
 from dual_state import generate_dual_state
 from encryption import AESCipher, FPECipher
 from threat_intel import generate_threat_report, format_threat_report_text
@@ -77,10 +78,12 @@ class PIIShieldPipeline:
             return self._process_sql(filepath, user)
 
         text = ingest_file(filepath)
+        text = truncate_for_processing(text)
         self.audit_logger.log(user, "EXTRACT", f"Extracted {len(text)} chars from {filename}")
 
-        # ---- Step 3: PII Analysis ----
+        # ---- Step 3: PII Analysis + Context-Aware Rules ----
         results = analyze_text(self.analyzer, text)
+        results = apply_context_rules(text, results)
         self.audit_logger.log(
             user, "ANALYZE",
             f"Detected {len(results)} PII entities in {filename}"
@@ -136,13 +139,16 @@ class PIIShieldPipeline:
 
         # Define analysis/anonymization functions for the SQL handler
         def analyze_fn(text):
-            return analyze_text(self.analyzer, text)
+            results = analyze_text(self.analyzer, text)
+            return apply_context_rules(text, results)
 
         def anonymize_fn(text, results):
             return anonymize_text(self.anonymizer, text, results)
 
         # Also run full analysis on the entire SQL text for threat assessment
-        full_results = analyze_text(self.analyzer, sql_content)
+        truncated_sql = truncate_for_processing(sql_content)
+        full_results = analyze_text(self.analyzer, truncated_sql)
+        full_results = apply_context_rules(truncated_sql, full_results)
 
         # Sanitize the SQL file
         output_path = filepath.replace(".sql", "_sanitized.sql")
@@ -182,9 +188,11 @@ class PIIShieldPipeline:
         Process raw text directly (e.g., from a chatbot interface).
         Useful for the Admin chatbot integration.
         """
+        text = truncate_for_processing(text)
         self.audit_logger.log(user, "INPUT", f"Direct text input: {source_name} ({len(text)} chars)")
 
         results = analyze_text(self.analyzer, text)
+        results = apply_context_rules(text, results)
         dual_state = generate_dual_state(text, results, self.aes_cipher, self.fpe_cipher)
         threat_report = generate_threat_report(source_name, results, len(text))
 

@@ -1,0 +1,24 @@
+CONFIDENTIAL — Customer KYC Record
+
+Full Name: [REDACTED_NAME] Birth: 15-March-1990
+[REDACTED_NAME]: [REDACTED]***********@securecorp.inbile Number: XXXXXXXX6780
+[REDACTED_NAME]: XXXX XXXX 9018
+PAN Card: BK*******J
+
+[REDACTED_NAME]:
+  Flat 301, [REDACTED_NAME]ED_NAME]D] — [REDACTED]
+
+[REDACTED_NAME]:
+  [REDACTED_NAME]: [REDACTED_NAME]: 4532-1234-5678-9012
+  [REDACTED_NAME]: XXXX-XXXX-XXXX-9903
+
+[REDACTED_NAME]:
+  Name: [REDACTED_NAME]: XXXXXXXX2345
+  Relation: [REDACTED_NAME]:
+  [REDACTED_NAME]: EMP0098123
+  [REDACTED_NAME]: XXXXXX8901
+  Transaction ID: TXN20240315001
+
+Note: [REDACTED_NAME], [REDACTED_NAME], and Transaction ID above are
+internal identifiers and should NOT be detected as PII by the system.
+They are included to test false-positive rejection.

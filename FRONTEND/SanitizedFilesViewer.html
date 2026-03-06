@@ -174,18 +174,20 @@
                                     const data = d.data();
                                     const ext = (data.fileName || '').split('.').pop().toUpperCase();
                                     const ts = data.uploadTime ? (data.uploadTime.toDate ? data.uploadTime.toDate() : new Date(data.uploadTime)) : new Date();
-                                    const statusMap = { 'completed': 'Completed', 'processing': 'Processing', 'uploaded': 'Processing' };
+                                    const statusMap = { 'completed': 'Completed', 'processing': 'Processing', 'uploaded': 'Processing', 'error': 'Failed' };
+                                    const sr = data.scanResults || {};
                                     return {
                                         id: d.id,
                                         fileName: data.fileName || 'Unknown',
                                         fileType: ext,
                                         sanitizedDate: ts.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-                                        piiRemoved: 0,
+                                        piiRemoved: sr.entity_count || 0,
                                         status: statusMap[(data.status || '').toLowerCase()] || 'Processing',
                                         uploadedBy: data.uploadedBy || 'Unknown',
                                         originalFile: data.fileName || '',
                                         fileData: data.fileData || '',
                                         sanitizedFileData: data.sanitizedFileData || '',
+                                        scanResults: sr,
                                     };
                                 });
                                 setFiles(list);
@@ -205,14 +207,13 @@
             ];
 
             const completedFiles = files.filter(f => f.status === 'Completed');
-            const recentFiles = files.filter(f => f.sanitizedDate === '05 Mar 2026').length;
             const totalPiiRemoved = files.reduce((sum, f) => sum + f.piiRemoved, 0);
 
             const stats = [
                 { label: 'Sanitized Files Available', value: completedFiles.length, icon: Icons.FilesLrg, color: 'emerald' },
-                { label: 'Recently Added', value: recentFiles, icon: Icons.RecentLrg, color: 'cyan' },
+                { label: 'Total Files', value: files.length, icon: Icons.RecentLrg, color: 'cyan' },
                 { label: 'Total PII Removed', value: totalPiiRemoved, icon: Icons.ScanLrg, color: 'blue' },
-                { label: 'Latest Scan Date', value: '05 Mar', icon: Icons.DownloadLrg, color: 'purple', sub: '2026' },
+                { label: 'Processing', value: files.filter(f => f.status === 'Processing').length, icon: Icons.DownloadLrg, color: 'purple' },
             ];
 
             const allFileTypes = [...new Set(files.map(f => f.fileType))];
@@ -444,11 +445,12 @@
                                         <svg className="h-4 w-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
                                         <span className="text-xs font-semibold text-emerald-700">{"Sanitized Document \u2014 All PII has been securely redacted"}</span>
                                     </div>
-                                    <div className="bg-slate-900 rounded-xl p-5 overflow-x-auto">
+                                    <div className="bg-slate-900 rounded-xl p-5 overflow-x-auto max-h-[60vh] overflow-y-auto">
                                         <pre className="text-sm text-slate-300 font-mono leading-relaxed whitespace-pre-wrap">{(() => {
-                                            const src = previewFile.sanitizedFileData || previewFile.fileData;
-                                            return src ? atob(src.split(',')[1] || '') : 'No content available. File data not stored.';
-                                        })().substring(0, 2000).split('[REDACTED').map((part, i) => {
+                                            if (previewFile.sanitizedFileData) return previewFile.sanitizedFileData;
+                                            if (previewFile.scanResults && previewFile.scanResults.masked_text) return previewFile.scanResults.masked_text;
+                                            return 'No sanitized content available. File may not have been scanned yet.';
+                                        })().split('[REDACTED').map((part, i) => {
                                             if (i === 0) return part;
                                             const endIdx = part.indexOf(']');
                                             const tag = '[REDACTED' + part.substring(0, endIdx + 1);

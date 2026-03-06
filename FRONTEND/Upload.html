@@ -207,7 +207,7 @@
                                         threatLevel: data.scanResults ? data.scanResults.threat_level : null,
                                         entityCount: data.scanResults ? data.scanResults.entity_count : 0,
                                         scanResults: data.scanResults || null,
-                                        fileData: data.fileData || null,
+                                        fileUrl: data.fileUrl || null,
                                         scanError: data.scanError || null,
                                     };
                                 });
@@ -243,7 +243,7 @@
             const validateFile = (file) => {
                 const ext = '.' + file.name.split('.').pop().toLowerCase();
                 if (!allowedExts.includes(ext)) return false;
-                if (file.size > 750 * 1024) return false;
+                if (file.size > 25 * 1024 * 1024) return false;
                 return true;
             };
 
@@ -263,57 +263,145 @@
                 const id = Math.random().toString(36).substring(7);
                 setUploadError('');
 
-                // Firestore document max is 1MB; limit file to 750KB to leave room for other fields
-                if (file.size > 750 * 1024) {
-                    setUploadError('File "' + file.name + '" is too large. Max 750 KB per file (Firestore limit). Consider compressing the file first.');
+                if (file.size > 25 * 1024 * 1024) {
+                    setUploadError('File "' + file.name + '" is too large. Max 25 MB per file.');
                     return;
                 }
 
                 setUploadingFiles(prev => [...prev, { id, file, progress: 0 }]);
 
                 try {
-                    // Read file as base64
-                    const base64Data = await new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onload = () => resolve(reader.result);
-                        reader.onerror = () => reject(reader.error);
-                        reader.onprogress = (e) => {
-                            if (e.lengthComputable) {
-                                const progress = Math.round((e.loaded / e.total) * 50);
-                                setUploadingFiles(prev => prev.map(u => u.id === id ? { ...u, progress } : u));
-                            }
-                        };
-                        reader.readAsDataURL(file);
-                    });
-
-                    // Update progress to 50% (reading done)
-                    setUploadingFiles(prev => prev.map(u => u.id === id ? { ...u, progress: 50 } : u));
-
-                    // Save to Firestore with base64 data
                     const currentUser = window.firebaseAuth.currentUser;
-                    const docRef = await window.addDoc(window.collection(window.firebaseDb, 'files'), {
+                    const ext = '.' + file.name.split('.').pop().toLowerCase();
+
+                    // 1. Read the file content for Firestore storage
+                    setUploadingFiles(prev => prev.map(u => u.id === id ? { ...u, progress: 10 } : u));
+                    const textExts = ['.txt', '.csv', '.sql', '.json'];
+                    let fileDataForFirestore = '';
+                    if (textExts.includes(ext)) {
+                        fileDataForFirestore = await new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve(reader.result);
+                            reader.onerror = () => resolve('');
+                            reader.readAsText(file);
+                        });
+                    }
+
+                    setUploadingFiles(prev => prev.map(u => u.id === id ? { ...u, progress: 20 } : u));
+
+                    // 2. Create Firestore document with metadata and original content
+                    const firestoreDoc = {
                         fileName: file.name,
                         fileType: file.name.split('.').pop().toUpperCase(),
                         uploadedBy: currentUser ? currentUser.email : 'Unknown',
                         uploadTime: window.serverTimestamp(),
-                        fileData: base64Data,
-                        originalFileURL: '',
-                        sanitizedFileURL: '',
-                        status: 'uploaded',
+                        status: 'processing',
                         fileSize: file.size
+                    };
+                    if (fileDataForFirestore) {
+                        firestoreDoc.fileData = fileDataForFirestore.substring(0, 500000);
+                    }
+
+                    const docRef = await window.addDoc(window.collection(window.firebaseDb, 'files'), firestoreDoc);
+                    setUploadingFiles(prev => prev.map(u => u.id === id ? { ...u, progress: 40 } : u));
+                    console.log('Firestore doc created:', file.name, docRef.id);
+
+                    // 3. Send file directly to Flask via FormData (bypasses Firebase Storage)
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('fileName', file.name);
+                        formData.append('docId', docRef.id);
+                        formData.append('fileType', ext);
+
+                        const resp = await fetch(AI_API_URL, {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const result = await resp.json();
+                        if (result.status === 'queued') {
+                            console.log('Scan queued for', file.name);
+                        } else if (result.error) {
+                            console.error('Scan queue error:', result.error);
+                        }
+                    } catch (fetchErr) {
+                        console.error('Could not reach Flask API:', fetchErr);
+                        setUploadError('AI server unreachable. Start Flask: python app.py');
+                    }
+
+                    // 4. Set up dual monitoring: Firestore onSnapshot + Flask polling fallback
+                    const docReference = window.doc(window.firebaseDb, 'files', docRef.id);
+                    const timeoutMs = 3 * 60 * 1000;
+                    let settled = false;
+
+                    const settle = () => {
+                        if (settled) return;
+                        settled = true;
+                        clearTimeout(timeoutHandle);
+                        clearInterval(pollHandle);
+                        unsubscribe();
+                    };
+
+                    let timeoutHandle = setTimeout(() => {
+                        settle();
+                        window.updateDoc(docReference, {
+                            status: 'error',
+                            scanError: 'Scan timed out. Please try again.'
+                        }).catch(() => {});
+                    }, timeoutMs);
+
+                    const unsubscribe = window.onSnapshot(docReference, (snap) => {
+                        if (!snap.exists()) return;
+                        const data = snap.data();
+                        if (data.status === 'completed' || data.status === 'error') {
+                            settle();
+                            if (data.status === 'completed') {
+                                console.log('Scan completed (Firestore) for', file.name);
+                            }
+                        }
                     });
 
-                    // Done
-                    setUploadingFiles(prev => prev.map(u => u.id === id ? { ...u, progress: 100 } : u));
-                    console.log('File saved to Firestore successfully:', file.name);
+                    // Polling fallback: check Flask /api/scan-status every 5s
+                    const pollHandle = setInterval(async () => {
+                        if (settled) return;
+                        try {
+                            const pollResp = await fetch(AI_API_URL.replace('/api/scan', '/api/scan-status/' + docRef.id));
+                            const pollData = await pollResp.json();
+                            if (pollData.status === 'completed') {
+                                console.log('Scan completed (poll) for', file.name);
+                                // Write results to Firestore from frontend
+                                await window.updateDoc(docReference, {
+                                    status: 'completed',
+                                    threatLevel: pollData.threat_level || 'LOW',
+                                    sanitizedFileData: pollData.sanitizedFileData || '',
+                                    fileData: pollData.original_text || '',
+                                    scanResults: {
+                                        threat_level: pollData.threat_level || 'LOW',
+                                        risk_score: pollData.risk_score || 0,
+                                        entity_count: pollData.entity_count || 0,
+                                        entity_breakdown: pollData.entity_breakdown || {},
+                                        entities: (pollData.entities || []).slice(0, 50),
+                                        masked_text: pollData.masked_text || '',
+                                        recommended_actions: pollData.recommended_actions || []
+                                    }
+                                }).catch(e => console.warn('Poll: Firestore write failed', e));
+                                settle();
+                            } else if (pollData.status === 'error') {
+                                await window.updateDoc(docReference, {
+                                    status: 'error',
+                                    scanError: pollData.scanError || 'Processing failed'
+                                }).catch(() => {});
+                                settle();
+                            }
+                        } catch (_) { /* polling error, will retry */ }
+                    }, 5000);
 
-                    // Remove from uploading list after brief delay
+                    // Done uploading
+                    setUploadingFiles(prev => prev.map(u => u.id === id ? { ...u, progress: 100 } : u));
                     setTimeout(() => {
                         setUploadingFiles(prev => prev.filter(u => u.id !== id));
                     }, 800);
 
-                    // Auto-trigger AI scan
-                    scanFile(docRef.id, base64Data, file.name);
                 } catch (e) {
                     console.error('Upload error:', e);
                     setUploadError('Upload failed for "' + file.name + '": ' + (e.code || e.message));
@@ -330,77 +418,82 @@
                 }
             };
 
-            const scanFile = async (docId, base64Data, fileName) => {
+            const scanFile = async (docId, fileUrlOrData, fileName) => {
+                // Retry scan: re-read the Firestore doc to get fileData, then POST to Flask
                 try {
-                    // Update status to processing
-                    await window.updateDoc(window.doc(window.firebaseDb, 'files', docId), { status: 'processing' });
+                    const docSnap = await window.getDoc(window.doc(window.firebaseDb, 'files', docId));
+                    if (!docSnap.exists()) return;
+                    const data = docSnap.data();
 
-                    const currentUser = window.firebaseAuth.currentUser;
+                    await window.updateDoc(window.doc(window.firebaseDb, 'files', docId), { status: 'processing', scanError: '' });
+                    const ext = '.' + fileName.split('.').pop().toLowerCase();
 
-                    // Use AbortController for a 120-second timeout
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 120000);
-
+                    // If fileData is available, create a Blob and send as FormData
+                    // Otherwise try fileUrl (legacy path)
                     let resp;
-                    try {
+                    if (data.fileData) {
+                        const blob = new Blob([data.fileData], { type: 'text/plain' });
+                        const formData = new FormData();
+                        formData.append('file', blob, fileName);
+                        formData.append('fileName', fileName);
+                        formData.append('docId', docId);
+                        formData.append('fileType', ext);
+                        resp = await fetch(AI_API_URL, { method: 'POST', body: formData });
+                    } else if (data.fileUrl) {
                         resp = await fetch(AI_API_URL, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            signal: controller.signal,
-                            body: JSON.stringify({
-                                fileData: base64Data,
-                                fileName: fileName,
-                                user: currentUser ? currentUser.email : 'admin',
-                                docId: docId
-                            })
+                            body: JSON.stringify({ fileUrl: data.fileUrl, fileName, docId, fileType: ext })
                         });
-                    } finally {
-                        clearTimeout(timeoutId);
-                    }
-                    const result = await resp.json();
-
-                    if (result.success) {
-                        // Flask updates Firestore directly when Admin SDK is configured.
-                        // Only do a frontend fallback write if Flask couldn't.
-                        if (!result.firestoreUpdated) {
-                            const updatePayload = {
-                                status: 'completed',
-                                scanResults: {
-                                    threat_level: result.threat_level || 'LOW',
-                                    risk_score: result.risk_score || 0,
-                                    entity_count: result.entity_count || 0,
-                                    entity_breakdown: result.entity_breakdown || {},
-                                    entities: (result.entities || []).slice(0, 50),
-                                    masked_text: (result.masked_text || '').substring(0, 5000),
-                                    recommended_actions: result.recommended_actions || [],
-                                    scannedAt: new Date().toISOString()
-                                }
-                            };
-                            if (result.sanitizedFileData) {
-                                updatePayload.sanitizedFileData = result.sanitizedFileData;
-                            }
-                            await window.updateDoc(window.doc(window.firebaseDb, 'files', docId), updatePayload);
-                        }
-                        setScanResults(prev => ({ ...prev, [docId]: result }));
                     } else {
-                        if (!result.firestoreUpdated) {
-                            await window.updateDoc(window.doc(window.firebaseDb, 'files', docId), {
-                                status: 'error',
-                                scanError: result.error || 'Scan failed'
-                            });
-                        }
-                        setUploadError('Scan failed for "' + fileName + '": ' + (result.error || 'Unknown error'));
+                        setUploadError('Cannot retry scan: no file data available for "' + fileName + '".');
+                        return;
+                    }
+
+                    const result = await resp.json();
+                    if (result.status !== 'queued') {
+                        setUploadError('Scan queue failed for "' + fileName + '": ' + (result.error || 'Unknown error'));
+                    } else {
+                        // Start polling for this retry
+                        const docReference = window.doc(window.firebaseDb, 'files', docId);
+                        const retryPoll = setInterval(async () => {
+                            try {
+                                const pr = await fetch(AI_API_URL.replace('/api/scan', '/api/scan-status/' + docId));
+                                const pd = await pr.json();
+                                if (pd.status === 'completed') {
+                                    clearInterval(retryPoll);
+                                    await window.updateDoc(docReference, {
+                                        status: 'completed',
+                                        threatLevel: pd.threat_level || 'LOW',
+                                        sanitizedFileData: pd.sanitizedFileData || '',
+                                        fileData: pd.original_text || '',
+                                        scanResults: {
+                                            threat_level: pd.threat_level || 'LOW',
+                                            risk_score: pd.risk_score || 0,
+                                            entity_count: pd.entity_count || 0,
+                                            entity_breakdown: pd.entity_breakdown || {},
+                                            entities: (pd.entities || []).slice(0, 50),
+                                            masked_text: pd.masked_text || '',
+                                            recommended_actions: pd.recommended_actions || []
+                                        }
+                                    }).catch(() => {});
+                                } else if (pd.status === 'error') {
+                                    clearInterval(retryPoll);
+                                    await window.updateDoc(docReference, {
+                                        status: 'error', scanError: pd.scanError || 'Failed'
+                                    }).catch(() => {});
+                                }
+                            } catch (_) {}
+                        }, 5000);
+                        // Auto-stop polling after 3 min
+                        setTimeout(() => clearInterval(retryPoll), 180000);
                     }
                 } catch (e) {
-                    console.error('AI Scan error:', e);
-                    const errorMsg = e.name === 'AbortError'
-                        ? 'Scan timed out after 120 seconds. The file may be too large or the server is overloaded.'
-                        : 'AI server unreachable. Start Flask: python app.py';
-                    setUploadError('Scan failed for "' + fileName + '": ' + errorMsg);
+                    console.error('Retry scan error:', e);
+                    setUploadError('AI server unreachable. Start Flask: python app.py');
                     try {
                         await window.updateDoc(window.doc(window.firebaseDb, 'files', docId), {
-                            status: 'error',
-                            scanError: errorMsg
+                            status: 'error', scanError: 'AI server unreachable'
                         });
                     } catch (ignored) {}
                 }
@@ -628,8 +721,8 @@
                                                                         <button onClick={() => { setModalTab('sanitized'); setViewingResult(doc); }} className="px-2.5 py-1 text-[11px] font-bold text-deepblue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors" title="View AI Results">
                                                                             View Results
                                                                         </button>
-                                                                    ) : (doc.scanStatus === 'Pending' || doc.scanStatus === 'Error') && doc.fileData ? (
-                                                                        <button onClick={() => scanFile(doc.id, doc.fileData, doc.fileName)} className="px-2.5 py-1 text-[11px] font-bold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded-lg transition-colors" title="Run AI Scan">
+                                                                    ) : (doc.scanStatus === 'Pending' || doc.scanStatus === 'Error') ? (
+                                                                        <button onClick={() => scanFile(doc.id, null, doc.fileName)} className="px-2.5 py-1 text-[11px] font-bold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded-lg transition-colors" title="Run AI Scan">
                                                                             {doc.scanStatus === 'Error' ? 'Retry Scan' : 'Scan'}
                                                                         </button>
                                                                     ) : null}
@@ -742,22 +835,15 @@
                                     )}
 
                                     {/* Original & Sanitized Text - Dual View */}
-                                    {(viewingResult.scanResults.masked_text || viewingResult.fileData) && (
+                                    {viewingResult.scanResults.masked_text && (
                                         <div>
                                             <div className="flex items-center gap-1 mb-3">
                                                 <span className="w-1 h-5 bg-emerald-500 rounded-full mr-1"></span>
-                                                <button onClick={() => setModalTab('original')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${modalTab === 'original' ? 'bg-deepblue text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Original File</button>
                                                 <button onClick={() => setModalTab('sanitized')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${modalTab === 'sanitized' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Sanitized Output</button>
                                             </div>
-                                            {modalTab === 'original' ? (
-                                                <div className="bg-slate-900 text-blue-300 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap border border-slate-700">
-                                                    {viewingResult.fileData ? (() => { try { const parts = viewingResult.fileData.split(','); return atob(parts[1] || parts[0]); } catch(e) { return 'Unable to decode original file content.'; } })() : 'Original file data not available.'}
-                                                </div>
-                                            ) : (
-                                                <div className="bg-slate-900 text-green-400 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap border border-slate-700">
-                                                    {viewingResult.scanResults.masked_text || 'No sanitized output available.'}
-                                                </div>
-                                            )}
+                                            <div className="bg-slate-900 text-green-400 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap border border-slate-700">
+                                                {viewingResult.scanResults.masked_text || 'No sanitized output available.'}
+                                            </div>
                                         </div>
                                     )}
 

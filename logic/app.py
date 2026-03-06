@@ -18,12 +18,15 @@ import json
 import os
 import sqlite3
 import tempfile
+import threading
 import traceback
 
+import requests as http_requests
 from flask import Flask, render_template, request, jsonify, send_file
 from flask_cors import CORS
 
 from pipeline import PIIShieldPipeline
+from ingestion import ingest_file
 from table_processor import process_ascii_table, create_table_processor
 from file_handlers import process_file, HANDLERS
 from config import DATABASE_PATH
@@ -38,12 +41,20 @@ except ImportError:
     print("WARNING: firebase-admin not installed. Run: pip install firebase-admin")
 
 app = Flask(__name__)
-CORS(app)  # Allow all origins during development
+app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024  # 25 MB upload limit
+CORS(app, origins="*")  # Allow all origins during development
 pipeline = None  # Lazy initialization
 table_processor = None  # Lazy initialization
 
 SANITIZED_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sanitized_files")
 os.makedirs(SANITIZED_DIR, exist_ok=True)
+
+TEMP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp")
+os.makedirs(TEMP_DIR, exist_ok=True)
+
+# ---- In-memory scan results cache (fallback when Firestore writes fail) ----
+_scan_results_lock = threading.Lock()
+_scan_results = {}  # doc_id → {"status": "completed"|"error", ...}
 
 # ---- Firebase Admin SDK Setup ----
 _firestore_client = None
@@ -53,6 +64,7 @@ def init_firebase():
     """Initialize Firebase Admin SDK for server-side Firestore writes."""
     global _firestore_client
     if not _FIREBASE_AVAILABLE:
+        print("  firebase-admin not installed — using polling fallback only.")
         return
     service_account_path = os.environ.get(
         "FIREBASE_SERVICE_ACCOUNT",
@@ -63,9 +75,10 @@ def init_firebase():
             cred = credentials.Certificate(service_account_path)
             firebase_admin.initialize_app(cred)
             _firestore_client = admin_firestore.client()
-            print("Firebase Admin SDK initialized — Firestore writes enabled.")
+            print("Firebase Admin SDK initialized (Firestore writes will be attempted).")
         except Exception as e:
             print(f"WARNING: Firebase Admin SDK init failed: {e}")
+            _firestore_client = None
     else:
         print(f"WARNING: Service account key not found at: {service_account_path}")
         print("  Place serviceAccountKey.json in logic/ or set FIREBASE_SERVICE_ACCOUNT env var.")
@@ -73,43 +86,51 @@ def init_firebase():
 
 
 def _update_firestore_completed(doc_id, response):
-    """Write scan results to the Firestore document. Returns True on success."""
+    """Fire-and-forget: try to write scan results to Firestore in a background thread."""
     if not _firestore_client or not doc_id:
-        return False
-    try:
-        update_payload = {
-            "status": "completed",
-            "scanResults": {
-                "threat_level": response.get("threat_level", "LOW"),
-                "risk_score": response.get("risk_score", 0),
-                "entity_count": response.get("entity_count", 0),
-                "entity_breakdown": response.get("entity_breakdown", {}),
-                "entities": (response.get("entities") or [])[:50],
-                "masked_text": (response.get("masked_text") or "")[:5000],
-                "recommended_actions": response.get("recommended_actions", []),
-                "scannedAt": admin_firestore.SERVER_TIMESTAMP,
-            },
-        }
-        if response.get("sanitizedFileData"):
-            update_payload["sanitizedFileData"] = response["sanitizedFileData"]
-        _firestore_client.collection("files").document(doc_id).update(update_payload)
-        return True
-    except Exception as fs_err:
-        print(f"[SCAN] Firestore update failed: {fs_err}")
-        return False
+        return
+    def _write():
+        try:
+            update_payload = {
+                "status": "completed",
+                "threatLevel": response.get("threat_level", "LOW"),
+                "scanResults": {
+                    "threat_level": response.get("threat_level", "LOW"),
+                    "risk_score": response.get("risk_score", 0),
+                    "entity_count": response.get("entity_count", 0),
+                    "entity_breakdown": response.get("entity_breakdown", {}),
+                    "entities": (response.get("entities") or [])[:50],
+                    "masked_text": (response.get("masked_text") or "")[:500000],
+                    "recommended_actions": response.get("recommended_actions", []),
+                    "scannedAt": admin_firestore.SERVER_TIMESTAMP,
+                },
+            }
+            san_data = response.get("sanitizedFileData", "")
+            if san_data:
+                update_payload["sanitizedFileData"] = san_data[:900000]
+            orig_data = response.get("original_text", "")
+            if orig_data:
+                update_payload["fileData"] = orig_data[:500000]
+            _firestore_client.collection("files").document(doc_id).update(update_payload)
+            print(f"[SCAN] Firestore updated for {doc_id}")
+        except Exception as fs_err:
+            print(f"[SCAN] Firestore update failed (non-blocking): {fs_err}")
+    threading.Thread(target=_write, daemon=True).start()
 
 
 def _update_firestore_error(doc_id, error_msg):
-    """Mark the Firestore document as errored."""
+    """Fire-and-forget: mark the Firestore document as errored."""
     if not _firestore_client or not doc_id:
         return
-    try:
-        _firestore_client.collection("files").document(doc_id).update({
-            "status": "error",
-            "scanError": str(error_msg),
-        })
-    except Exception:
-        pass
+    def _write():
+        try:
+            _firestore_client.collection("files").document(doc_id).update({
+                "status": "error",
+                "scanError": str(error_msg),
+            })
+        except Exception:
+            pass
+    threading.Thread(target=_write, daemon=True).start()
 
 
 # ---- Database Setup ----
@@ -310,139 +331,188 @@ def analyze_table():
 @app.route("/api/scan", methods=["POST", "OPTIONS"])
 def api_scan():
     """
-    Scan file content for PII — used by the React frontend.
+    Queue a file for PII scanning — used by the React frontend.
 
-    Expects JSON: {
-        "fileData": "data:<mime>;base64,...",   // base64-encoded file
-        "fileName": "report.sql",
-        "user": "admin@example.com",
-        "docId": "<Firestore document ID>"      // so Flask can update Firestore
-    }
-    Returns JSON with threat_level, risk_score, entities, masked_text, etc.
+    Accepts either:
+      - FormData with a 'file' field (direct upload)
+      - JSON with {"fileUrl", "fileName", "docId", "fileType"}
+
+    Returns HTTP 202 with {"status": "queued"} immediately.
+    Processing happens in a background thread that updates Firestore directly.
     """
     if request.method == "OPTIONS":
         return jsonify({}), 200
 
-    data = request.get_json()
-    file_data = data.get("fileData", "")
+    uploaded_file = request.files.get("file")
+
+    if uploaded_file:
+        # ---- Direct file upload path (FormData) ----
+        file_name = request.form.get("fileName", uploaded_file.filename or "unknown.txt")
+        doc_id = request.form.get("docId", "")
+        file_type = request.form.get("fileType", "")
+        ext = file_type if file_type.startswith(".") else f".{file_type}" if file_type else os.path.splitext(file_name)[1].lower()
+        ext = ext.lower()
+
+        supported_extensions = {".txt", ".csv", ".pdf", ".docx", ".xlsx", ".sql", ".png", ".jpg", ".jpeg"}
+        if ext not in supported_extensions:
+            _update_firestore_error(doc_id, f"Unsupported file type: {ext}")
+            return jsonify({"error": f"Unsupported file type: {ext}", "status": "error"}), 400
+
+        safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in file_name)
+        tmp_path = os.path.join(TEMP_DIR, f"{doc_id}_{safe_name}")
+        uploaded_file.save(tmp_path)
+        print(f"[SCAN] Received direct upload: {file_name} ({os.path.getsize(tmp_path)} bytes)")
+
+        thread = threading.Thread(
+            target=_background_scan,
+            args=(None, file_name, doc_id, ext),
+            kwargs={"local_path": tmp_path},
+            daemon=True,
+        )
+        thread.start()
+        return jsonify({"status": "queued"}), 202
+
+    # ---- JSON / fileUrl path (existing behaviour) ----
+    data = request.get_json() or {}
+    file_url = data.get("fileUrl", "")
     file_name = data.get("fileName", "unknown.txt")
-    user = data.get("user", "web_user")
     doc_id = data.get("docId", "")
+    file_type = data.get("fileType", "")
 
-    if not file_data:
-        return jsonify({"error": "No file data provided", "success": False}), 400
+    if not file_url:
+        _update_firestore_error(doc_id, "No file URL provided")
+        return jsonify({"error": "No file URL provided", "status": "error"}), 400
 
-    # Validate file extension upfront so unsupported types fail fast
-    ext_check = os.path.splitext(file_name)[1].lower()
-    supported_extensions = {".txt", ".csv", ".pdf", ".docx", ".xlsx", ".sql", ".json", ".png", ".jpg", ".jpeg"}
-    if ext_check not in supported_extensions:
-        return jsonify({"error": f"Unsupported file type: {ext_check}", "success": False}), 400
+    # Normalise extension
+    ext = file_type if file_type.startswith(".") else f".{file_type}" if file_type else os.path.splitext(file_name)[1].lower()
+    ext = ext.lower()
+
+    supported_extensions = {".txt", ".csv", ".pdf", ".docx", ".xlsx", ".sql", ".png", ".jpg", ".jpeg"}
+    if ext not in supported_extensions:
+        _update_firestore_error(doc_id, f"Unsupported file type: {ext}")
+        return jsonify({"error": f"Unsupported file type: {ext}", "status": "error"}), 400
+
+    # Spawn background thread so the HTTP response returns immediately
+    thread = threading.Thread(
+        target=_background_scan,
+        args=(file_url, file_name, doc_id, ext),
+        daemon=True,
+    )
+    thread.start()
+
+    return jsonify({"status": "queued"}), 202
+
+
+@app.route("/api/scan-status/<doc_id>", methods=["GET"])
+def scan_status(doc_id):
+    """Poll endpoint — returns cached scan results for the given docId."""
+    with _scan_results_lock:
+        entry = _scan_results.get(doc_id)
+    if entry is None:
+        return jsonify({"status": "processing"}), 200
+    return jsonify(entry), 200
+
+
+def _background_scan(file_url, file_name, doc_id, ext, local_path=None):
+    """Background thread: scan a file for PII. File is either already on disk (local_path) or downloaded from file_url."""
+    import time as _time
+
+    SCAN_TIMEOUT = 60  # seconds — hard limit for the entire scan
+
+    tmp_path = local_path
+    start_ts = _time.monotonic()
+
+    def _check_timeout(stage=""):
+        elapsed = _time.monotonic() - start_ts
+        if elapsed > SCAN_TIMEOUT:
+            raise TimeoutError(f"Scan timed out after {SCAN_TIMEOUT}s during {stage}")
 
     try:
-        # Decode base64 data
-        if "," in file_data:
-            mime_header = file_data.split(",", 1)[0]
-            file_data = file_data.split(",", 1)[1]
-        else:
-            mime_header = ""
-        raw_bytes = base64.b64decode(file_data)
+        # ---- Get file on disk ----
+        if not tmp_path:
+            safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in file_name)
+            tmp_path = os.path.join(TEMP_DIR, f"{doc_id}_{safe_name}")
+            resp = http_requests.get(file_url, timeout=120)
+            resp.raise_for_status()
+            with open(tmp_path, "wb") as f:
+                f.write(resp.content)
+            print(f"[SCAN] Downloaded {file_name} ({len(resp.content)} bytes) → {tmp_path}")
+        _check_timeout("download")
 
-        ext = os.path.splitext(file_name)[1].lower()
-
-        # Write to a temp file for pipeline processing
-        with tempfile.NamedTemporaryFile(
-            delete=False, suffix=ext, prefix="pii_scan_"
-        ) as tmp:
-            tmp.write(raw_bytes)
-            tmp_path = tmp.name
+        # Read raw bytes for text decoding
+        with open(tmp_path, "rb") as f:
+            file_bytes = f.read()
 
         p = get_pipeline()
-        sanitized_file_data = ""  # base64 data-URI of the sanitized file
+        sanitized_file_data = ""  # will hold the masked text as a string
+        original_text = ""  # will hold the original text for storage
 
-        # For text-based files, also try the text-based route
-        text_extensions = {".txt", ".csv", ".json", ".sql"}
+        # ---- Text-based ASCII-table fast path ----
+        text_extensions = {".txt", ".csv", ".sql"}
         if ext in text_extensions:
             try:
-                text_content = raw_bytes.decode("utf-8")
+                text_content = file_bytes.decode("utf-8")
             except UnicodeDecodeError:
-                text_content = raw_bytes.decode("latin-1")
+                text_content = file_bytes.decode("latin-1")
+            original_text = text_content
 
-            # Check if it's a table
             if is_ascii_table(text_content):
                 sanitized = process_ascii_table(
-                    text_content,
-                    twelve_digit_mode="ignore",
-                    name_mode="redact",
-                    min_score=0.3,
+                    text_content, twelve_digit_mode="ignore",
+                    name_mode="redact", min_score=0.3,
                 )
-                san_b64 = base64.b64encode(sanitized.encode("utf-8")).decode("ascii")
-                sanitized_file_data = (mime_header + "," + san_b64) if mime_header else ("data:text/plain;base64," + san_b64)
                 response = {
-                    "success": True,
-                    "fileName": file_name,
-                    "original_length": len(text_content),
                     "masked_text": sanitized,
-                    "sanitizedFileData": sanitized_file_data,
+                    "sanitizedFileData": sanitized,
+                    "original_text": original_text,
                     "entities": [],
                     "entity_count": 0,
                     "threat_level": "LOW",
                     "risk_score": 0,
                     "entity_breakdown": {},
-                    "recommended_actions": [
-                        "Table processed cell-by-cell (alignment preserved)",
-                        "Quasi-identifier column detection applied",
-                    ],
+                    "recommended_actions": ["Table processed cell-by-cell"],
                 }
-                response["firestoreUpdated"] = _update_firestore_completed(doc_id, response)
-                return jsonify(response)
+                _update_firestore_completed(doc_id, response)
+                with _scan_results_lock:
+                    _scan_results[doc_id] = {"status": "completed", **response}
+                print(f"[SCAN] Completed (table): {file_name}")
+                return
 
-        # ---- Produce the sanitized file via file_handlers ----
+        # ---- Produce sanitized file via file_handlers ----
         sanitized_path = None
         try:
             if ext in HANDLERS:
                 handler_result = process_file(tmp_path, SANITIZED_DIR, process_text_with_presidio)
                 sanitized_path = handler_result["output_path"]
                 print(f"[SCAN] Sanitized file written: {sanitized_path}")
-
-            # Build a base64 data-URI from the sanitized file for the frontend
-            if sanitized_path and os.path.exists(sanitized_path):
-                with open(sanitized_path, "rb") as sf:
-                    san_bytes = sf.read()
-                san_b64 = base64.b64encode(san_bytes).decode("ascii")
-                mime_map = {
-                    ".txt": "text/plain", ".csv": "text/csv",
-                    ".pdf": "application/pdf",
-                    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                }
-                mime_type = mime_map.get(ext, "application/octet-stream")
-                sanitized_file_data = f"data:{mime_type};base64,{san_b64}"
         except Exception as handler_err:
             print(f"[SCAN] file_handlers error for {file_name}: {handler_err}")
             traceback.print_exc()
-            # Non-fatal — we still return analysis results even if sanitized file fails
 
-        # Process through the full pipeline for analysis/threat results
-        result = p.process_document(tmp_path, user)
+        _check_timeout("pre-analysis")
 
-        # For text-based files without a handler, build sanitized data-URI from masked_text
-        if not sanitized_file_data and result.get("masked_text"):
-            masked = result["masked_text"]
-            san_b64 = base64.b64encode(masked.encode("utf-8")).decode("ascii")
-            sanitized_file_data = f"data:text/plain;base64,{san_b64}"
+        # Extract original text for non-text files (PDF, DOCX, etc.)
+        if not original_text:
+            try:
+                original_text = ingest_file(tmp_path)
+            except Exception:
+                pass
 
-        # Clean up temp file
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
+        # ---- Full pipeline analysis ----
+        result = p.process_document(tmp_path, user="admin")
+        _check_timeout("analysis")
+
+        # Build sanitizedFileData (plain masked text string)
+        sanitized_file_data = result.get("masked_text", "")
+
+        # Capture original text for storage
+        if not original_text:
+            original_text = result.get("original_text", "") or result.get("raw_text", "")
 
         response = {
-            "success": True,
-            "fileName": file_name,
-            "original_length": result.get("original_length", 0),
             "masked_text": result.get("masked_text", ""),
             "sanitizedFileData": sanitized_file_data,
+            "original_text": original_text,
             "entities": result.get("entities", []),
             "entity_count": len(result.get("entities", [])),
             "threat_level": result.get("threat_report", {})
@@ -456,13 +526,23 @@ def api_scan():
             "recommended_actions": result.get("threat_report", {})
                 .get("recommended_actions", []),
         }
-        response["firestoreUpdated"] = _update_firestore_completed(doc_id, response)
-        return jsonify(response)
+        _update_firestore_completed(doc_id, response)
+        with _scan_results_lock:
+            _scan_results[doc_id] = {"status": "completed", **response}
+        print(f"[SCAN] Completed: {file_name}, threat={response['threat_level']}")
 
     except Exception as e:
+        print(f"[SCAN] Error processing {file_name}: {e}")
         traceback.print_exc()
-        _update_firestore_error(doc_id, e)
-        return jsonify({"error": str(e), "success": False}), 500
+        _update_firestore_error(doc_id, str(e))
+        with _scan_results_lock:
+            _scan_results[doc_id] = {"status": "error", "scanError": str(e)}
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 # ---- Upload & Download Routes ----
@@ -691,4 +771,4 @@ if __name__ == "__main__":
     # Pre-load the pipeline on startup
     get_pipeline()
     
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=False, host="0.0.0.0", port=5000)

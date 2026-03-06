@@ -96,8 +96,12 @@
     <script type="text/babel">
         const { useState, useMemo } = React;
 
-        // Helper to decode base64 file content
+        // Helper to decode file content — handles both plain text and base64
         const decodeFileData = (fileData) => {
+            if (!fileData) return 'No file content available.';
+            // If it looks like plain text (no data: URI prefix), return as-is
+            if (!fileData.startsWith('data:')) return fileData;
+            // Otherwise decode base64 data URI
             try { const parts = fileData.split(','); return atob(parts[1] || parts[0]); } catch(e) { return 'Unable to decode file content.'; }
         };
 
@@ -178,6 +182,7 @@
                                 threatLevel: f.scanResults ? f.scanResults.threat_level : null,
                                 downloadURL: f.originalFileURL || '#',
                                 fileData: f.fileData || null,
+                                sanitizedFileData: f.sanitizedFileData || null,
                                 scanResults: f.scanResults || null
                             })));
                             setSanitizedFiles(all.filter(f => f.status === 'completed').map(f => ({
@@ -188,6 +193,7 @@
                                 status: 'Completed',
                                 downloadURL: f.sanitizedFileURL || f.originalFileURL || '#',
                                 fileData: f.fileData || null,
+                                sanitizedFileData: f.sanitizedFileData || null,
                                 scanResults: f.scanResults || null
                             })));
                         });
@@ -517,7 +523,7 @@
                                                 <span className="w-1 h-5 bg-blue-500 rounded-full"></span>
                                                 Original File Content
                                             </h3>
-                                            <div className="bg-slate-900 text-blue-300 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[50vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">
+                                            <div className="bg-slate-900 text-blue-300 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[60vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">
                                                 {viewFile.fileData ? decodeFileData(viewFile.fileData) : 'Original file data not available.'}
                                             </div>
                                         </div>
@@ -525,10 +531,14 @@
                                         <div>
                                             <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
                                                 <span className="w-1 h-5 bg-emerald-500 rounded-full"></span>
-                                                Sanitized Output (PII Removed)
+                                                Complete Sanitized File (PII Removed)
                                             </h3>
-                                            <div className="bg-slate-900 text-green-400 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[50vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">
-                                                {viewFile.scanResults && viewFile.scanResults.masked_text ? viewFile.scanResults.masked_text : 'Sanitized content not available. File may not have been scanned yet.'}
+                                            <div className="bg-slate-900 text-green-400 p-4 rounded-xl font-mono text-xs leading-relaxed max-h-[60vh] overflow-y-auto whitespace-pre-wrap border border-slate-700">
+                                                {(() => {
+                                                    const content = (viewFile.scanResults && viewFile.scanResults.sanitizedFileData) || viewFile.sanitizedFileData || (viewFile.scanResults && viewFile.scanResults.masked_text) || '';
+                                                    if (!content) return 'Sanitized content not available. File may not have been scanned yet.';
+                                                    return content;
+                                                })()}
                                             </div>
                                         </div>
                                     )}

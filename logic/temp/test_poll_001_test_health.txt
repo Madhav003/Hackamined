@@ -1,0 +1,4 @@
+{
+  "pipeline_loaded": true,
+  "status": "ok"
+}
