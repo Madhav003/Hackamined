@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PII Sanitization System - Statistical Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { deepblue: '#1E3A8A', cyan: '#06B6D4', lightbg: '#F8FAFC' },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #F8FAFC;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        .dark-glass {
+            background: linear-gradient(145deg, #1E3A8A, #152C6B);
+            box-shadow: inset 0 0 20px rgba(6, 182, 212, 0.1);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 10px 30px -10px rgba(30, 58, 138, 0.05);
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94A3B8;
+        }
+
+        .sidebar-transition {
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .skeleton {
+            background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: 200% 0;
+            }
+
+            100% {
+                background-position: -200% 0;
+            }
+        }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <!-- Firebase Config -->
+    <script type="module" src="firebaseConfig.js"></script>
+</head>
+
+<body class="text-slate-800 antialiased h-screen flex overflow-hidden">
+    <div id="root" class="w-full h-full"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        /* ==================== ICONS ==================== */
+        const Icons = {
+            LayoutDashboard: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>,
+            Upload: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
+            Eye: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
+            Users: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
+            ClipboardList: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>,
+            Download: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
+            BarChart: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+            LogOut: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
+            Menu: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>,
+            Bell: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
+            Shield: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
+            FileUpLrg: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
+            ScanLrg: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
+            ShieldLrg: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
+            AlertLrg: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>,
+        };
+
+        /* Removed demo data - now using dynamic Firestore data */
+
+        const fileTypeColors = {
+            PDF: 'bg-rose-100 text-rose-600', SQL: 'bg-indigo-100 text-indigo-600', CSV: 'bg-emerald-100 text-emerald-600',
+            JSON: 'bg-amber-100 text-amber-600', TXT: 'bg-slate-200 text-slate-600', DOCX: 'bg-blue-100 text-blue-600',
+            XLSX: 'bg-green-100 text-green-600', PNG: 'bg-purple-100 text-purple-600',
+        };
+        const statusBadge = {
+            'Sanitized': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+            'Failed': 'bg-red-100 text-red-600 border-red-200',
+            'Pending': 'bg-amber-100 text-amber-700 border-amber-200',
+        };
+
+        /* ==================== CHART COMPONENT ==================== */
+        const ChartCanvas = ({ chartType, chartData, chartOptions, title, subtitle }) => {
+            const canvasRef = useRef(null);
+            const chartRef = useRef(null);
+
+            useEffect(() => {
+                if (!canvasRef.current || typeof Chart === 'undefined') return;
+                if (chartRef.current) chartRef.current.destroy();
+
+                const ctx = canvasRef.current.getContext('2d');
+                chartRef.current = new Chart(ctx, {
+                    type: chartType,
+                    data: JSON.parse(JSON.stringify(chartData)),
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: { duration: 1200, easing: 'easeInOutQuart' },
+                        plugins: {
+                            legend: {
+                                position: (chartType === 'line' || chartType === 'bar') ? 'top' : 'right',
+                                labels: { usePointStyle: true, padding: 16, font: { family: 'Inter', size: 12, weight: 500 } }
+                            },
+                            tooltip: {
+                                backgroundColor: '#1E3A8A',
+                                titleFont: { family: 'Inter', weight: 600 },
+                                bodyFont: { family: 'Inter' },
+                                padding: 12, cornerRadius: 8, displayColors: true
+                            }
+                        },
+                        ...chartOptions
+                    }
+                });
+                return () => { if (chartRef.current) chartRef.current.destroy(); };
+            }, [chartData, chartType]);
+
+            return (
+                <div className="glass-card bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-xl transition-shadow duration-300 flex flex-col">
+                    <div className="mb-4">
+                        <h3 className="text-sm font-bold text-slate-800">{title}</h3>
+                        {subtitle ? <p className="text-[11px] text-slate-500 mt-0.5">{subtitle}</p> : null}
+                    </div>
+                    <div className="flex-1 min-h-0 relative" style={{ minHeight: '260px' }}>
+                        <canvas ref={canvasRef}></canvas>
+                    </div>
+                </div>
+            );
+        };
+
+        /* ==================== MAIN COMPONENT ==================== */
+        const StatisticalAnalysisPage = () => {
+            const [sidebarOpen, setSidebarOpen] = useState(false);
+            const activeMenu = 'Statistical Analysis';
+            const [userName, setUserName] = useState('Admin User');
+
+            const [stats, setStats] = useState({ totalUploaded: 0, totalScanned: 0, totalSanitized: 0, totalPII: 0 });
+            const [fileTypes, setFileTypes] = useState([]);
+            const [sanitization, setSanitization] = useState({ success: 0, failed: 0, pending: 0 });
+            const [activity, setActivity] = useState([]);
+
+            // Auth guard + fetch data
+            React.useEffect(() => {
+                const checkAuth = setInterval(() => {
+                    if (!window.firebaseAuth) return;
+                    clearInterval(checkAuth);
+                    window.onAuthStateChanged(window.firebaseAuth, async (user) => {
+                        if (!user) { window.location.href = 'Login.html'; return; }
+                        const uDoc = await window.getDoc(window.doc(window.firebaseDb, 'users', user.uid));
+                        if (!uDoc.exists() || (uDoc.data().role || '').toLowerCase() !== 'admin') { window.location.href = 'UserDashboard.html'; return; }
+                        setUserName(uDoc.data().name || 'Admin User');
+
+                        // Fetch files for stats
+                        window.onSnapshot(window.collection(window.firebaseDb, 'files'), (snapshot) => {
+                            const files = snapshot.docs.map(d => d.data());
+                            const total = files.length;
+                            const completed = files.filter(f => f.status === 'completed').length;
+                            const processing = files.filter(f => f.status === 'uploaded' || f.status === 'processing').length;
+                            setStats({ totalUploaded: total, totalScanned: completed + processing, totalSanitized: completed, totalPII: 0 });
+                            setSanitization({ success: completed, failed: 0, pending: processing });
+
+                            // File types breakdown
+                            const typeCounts = {};
+                            files.forEach(f => {
+                                const ext = f.fileName.split('.').pop().toUpperCase();
+                                typeCounts[ext] = (typeCounts[ext] || 0) + 1;
+                            });
+                            setFileTypes(Object.entries(typeCounts).map(([type, count]) => ({ type, count })));
+
+                            // Recent activity
+                            setActivity(files.filter(f => f.uploadTime).sort((a, b) => {
+                                const ta = a.uploadTime.toDate ? a.uploadTime.toDate() : new Date(a.uploadTime);
+                                const tb = b.uploadTime.toDate ? b.uploadTime.toDate() : new Date(b.uploadTime);
+                                return tb - ta;
+                            }).slice(0, 7).map((f, i) => {
+                                const t = f.uploadTime.toDate ? f.uploadTime.toDate() : new Date(f.uploadTime);
+                                const ext = f.fileName.split('.').pop().toUpperCase();
+                                const st = f.status === 'completed' ? 'Sanitized' : f.status === 'processing' ? 'Processing' : 'Pending';
+                                return { id: i, fileName: f.fileName, uploadedBy: f.uploadedBy || 'Unknown', fileType: ext, pii: 0, status: st, date: t.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) };
+                            }));
+                        });
+                    });
+                }, 100);
+                return () => clearInterval(checkAuth);
+            }, []);
+
+            const handleLogout = async () => {
+                try { await window.signOut(window.firebaseAuth); window.location.href = 'Login.html'; } catch (e) { console.error(e); }
+            };
+
+            const menuItems = [
+                { name: 'Dashboard', icon: Icons.LayoutDashboard, href: 'Dashboard.html' },
+                { name: 'Upload Files', icon: Icons.Upload, href: 'Upload.html' },
+                { name: 'View Files', icon: Icons.Eye, href: 'ViewFiles.html' },
+                { name: 'Manage Users', icon: Icons.Users, href: 'ManageUsers.html' },
+                { name: 'Audit Logs', icon: Icons.ClipboardList, href: 'AuditLogs.html' },
+                { name: 'Download PII', icon: Icons.Download, href: 'DownloadPII.html' },
+                { name: 'Statistical Analysis', icon: Icons.BarChart, href: 'StatisticalAnalysis.html' },
+            ];
+
+            /* Chart data objects */
+            const lineData = {
+                labels: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'],
+                datasets: [{
+                    label: 'Files Uploaded', data: [stats.totalUploaded > 0 ? Math.ceil(stats.totalUploaded * 0.1) : 0, Math.ceil(stats.totalUploaded * 0.3), Math.ceil(stats.totalUploaded * 0.5), Math.ceil(stats.totalUploaded * 0.8), stats.totalUploaded],
+                    borderColor: '#06B6D4', backgroundColor: 'rgba(6,182,212,0.08)',
+                    fill: true, tension: 0.4, pointRadius: 5, pointHoverRadius: 8,
+                    pointBackgroundColor: '#fff', pointBorderColor: '#06B6D4', pointBorderWidth: 2.5,
+                    borderWidth: 3
+                }]
+            };
+            const lineOptions = { scales: { x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 11 } } }, y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Inter', size: 11 } } } } };
+
+            const piiColors = ['#1E3A8A', '#06B6D4', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981'];
+            const doughnutData = {
+                labels: ['Names', 'Emails', 'Phones', 'Addresses', 'IDs', 'DOB'],
+                datasets: [{ data: [0, 0, 0, 0, 0, 0], backgroundColor: piiColors, borderWidth: 0, hoverOffset: 12 }]
+            };
+
+            const barColors = ['#10B981', '#EF4444', '#3B82F6', '#F59E0B', '#1E3A8A', '#8B5CF6', '#94A3B8'];
+            const barData = {
+                labels: fileTypes.map(d => d.type),
+                datasets: [{ label: 'Files', data: fileTypes.map(d => d.count), backgroundColor: barColors.slice(0, fileTypes.length), borderRadius: 8, barPercentage: 0.55, borderSkipped: false }]
+            };
+            const barOptions = { scales: { x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 11, weight: 600 } } }, y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Inter', size: 11 } } } }, plugins: { legend: { display: false } } };
+
+            const sanitizationData = {
+                labels: ['Sanitized', 'Failed', 'Pending'],
+                datasets: [{ data: [sanitization.success, sanitization.failed, sanitization.pending], backgroundColor: ['#10B981', '#EF4444', '#F59E0B'], borderWidth: 0, hoverOffset: 12 }]
+            };
+            const donutOptions = { cutout: '65%' };
+
+            const statCards = [
+                { label: 'Total Files Uploaded', value: stats.totalUploaded, icon: Icons.FileUpLrg, color: 'blue' },
+                { label: 'Total Files Scanned', value: stats.totalScanned, icon: Icons.ScanLrg, color: 'cyan' },
+                { label: 'Sanitized Files', value: stats.totalSanitized, icon: Icons.ShieldLrg, color: 'emerald' },
+                { label: 'PII Entities Detected', value: stats.totalPII.toLocaleString(), icon: Icons.AlertLrg, color: 'amber' },
+            ];
+
+            return (
+                <div className="flex h-screen w-full bg-slate-50 relative">
+                    {sidebarOpen ? <div className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setSidebarOpen(false)}></div> : null}
+
+                    {/* SIDEBAR */}
+                    <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-72 dark-glass text-white flex flex-col sidebar-transition ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
+                        <div className="h-20 flex items-center px-6 border-b border-white/10 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/20 rounded-full blur-2xl transform translate-x-10 -translate-y-10"></div>
+                            <Icons.Shield />
+                            <div className="ml-3 flex flex-col"><span className="text-lg font-extrabold tracking-wide leading-tight">PII Sanitization</span><span className="text-xs text-cyan-400 font-medium tracking-wider">SYSTEM</span></div>
+                        </div>
+                        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1.5">
+                            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 ml-2">Main Menu</div>
+                            {menuItems.map(item => (
+                                <button key={item.name} onClick={() => { if (item.name !== activeMenu) window.location.href = item.href; }} className={`w-full flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 ${item.name === activeMenu ? 'bg-gradient-to-r from-cyan-500/20 to-blue-600/20 text-cyan-300 border border-cyan-500/30 shadow-[inset_0_0_15px_rgba(6,182,212,0.15)] font-semibold' : 'text-slate-300 hover:bg-white/5 hover:text-white font-medium cursor-pointer'}`}>
+                                    <item.icon /><span className="ml-3.5">{item.name}</span>
+                                    {item.name === activeMenu ? <div className="ml-auto w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,1)]"></div> : null}
+                                </button>
+                            ))}
+                        </nav>
+                        <div className="p-4 border-t border-white/10"><button onClick={handleLogout} className="w-full flex items-center px-4 py-3 rounded-xl text-slate-300 hover:bg-white/5 transition-all"><Icons.LogOut /><span className="ml-3.5 font-medium">Logout</span></button></div>
+                    </aside>
+
+                    {/* MAIN */}
+                    <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+                        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-cyan-100/40 rounded-full blur-[100px] pointer-events-none -z-10 -translate-y-1/2 translate-x-1/2"></div>
+                        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-blue-100/30 rounded-full blur-[120px] pointer-events-none -z-10 translate-y-1/3 -translate-x-1/3"></div>
+
+                        {/* NAVBAR */}
+                        <header className="h-20 glass-card border-b border-slate-200/60 shadow-sm flex items-center justify-between px-6 lg:px-10 z-10 shrink-0 sticky top-0">
+                            <div className="flex items-center">
+                                <button className="lg:hidden text-slate-500 hover:text-deepblue mr-4 p-1" onClick={() => setSidebarOpen(true)}><Icons.Menu /></button>
+                                <h1 className="text-xl lg:text-2xl font-bold text-slate-800 tracking-tight">Statistical Analysis</h1>
+                            </div>
+                            <div className="flex items-center space-x-5 lg:space-x-7">
+                                <button className="relative text-slate-500 hover:text-deepblue transition-colors p-1"><Icons.Bell /><span className="absolute top-0 right-0 h-2.5 w-2.5 bg-red-500 border-2 border-white rounded-full"></span></button>
+                                <div className="flex items-center space-x-3 cursor-pointer pl-2 border-l border-slate-200">
+                                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-deepblue to-cyan-500 p-[2px]"><div className="w-full h-full rounded-full border-2 border-white bg-white flex items-center justify-center"><svg className="w-5 h-5 text-slate-300 mt-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"></path></svg></div></div>
+                                    <div className="hidden lg:block text-left"><div className="text-sm font-semibold text-slate-700 leading-tight">{userName}</div><div className="text-[11px] text-slate-500 font-medium">Platform Admin</div></div>
+                                </div>
+                            </div>
+                        </header>
+
+                        {/* CONTENT */}
+                        <div className="flex-1 overflow-y-auto p-6 lg:p-10 pb-24 relative z-0">
+                            <div className="max-w-7xl mx-auto space-y-8">
+
+
+
+                                {/* Header */}
+                                <div>
+                                    <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">{"System Analytics & Security Insights"}</h2>
+                                    <p className="text-slate-500 text-[15px] mt-1 max-w-3xl leading-relaxed">Visualize file activity, PII detection patterns, and platform usage statistics to gain insights into system performance and security trends.</p>
+                                </div>
+
+                                {/* Stats Cards */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    {statCards.map((s, i) => {
+                                        const Icon = s.icon;
+                                        return (
+                                            <div key={i} className="glass-card bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl transition-shadow duration-300 border border-slate-100 group relative overflow-hidden">
+                                                <div className="absolute inset-0 bg-gradient-to-br from-transparent to-slate-50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                                <div className="flex justify-between items-start relative z-10">
+                                                    <div><h3 className="text-3xl font-extrabold text-slate-800 mb-1">{s.value}</h3><p className="text-sm font-semibold text-slate-500">{s.label}</p></div>
+                                                    <div className={`p-3 rounded-xl bg-${s.color}-50 text-${s.color}-500 group-hover:scale-110 transition-transform duration-300`}><Icon /></div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Charts Grid */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <ChartCanvas
+                                        chartType="line" chartData={lineData} chartOptions={lineOptions}
+                                        title="File Upload Trend" subtitle="Number of files uploaded over the last 10 days"
+                                    />
+                                    <ChartCanvas
+                                        chartType="doughnut" chartData={doughnutData} chartOptions={donutOptions}
+                                        title="PII Entity Detection Distribution" subtitle="Breakdown of detected PII types across all files"
+                                    />
+                                    <ChartCanvas
+                                        chartType="bar" chartData={barData} chartOptions={barOptions}
+                                        title="File Type Distribution" subtitle="Document formats uploaded to the platform"
+                                    />
+                                    <ChartCanvas
+                                        chartType="doughnut" chartData={sanitizationData} chartOptions={donutOptions}
+                                        title="Sanitization Success Rate" subtitle="Status of all sanitization operations"
+                                    />
+                                </div>
+
+                                {/* Recent Activity */}
+                                <div className="glass-card bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                                    <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
+                                        <h3 className="text-lg font-bold text-slate-800">Recent Activity</h3>
+                                        <p className="text-xs text-slate-500 mt-0.5">Latest file processing events across the platform</p>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-500 font-semibold sticky top-0">
+                                                    <th className="p-4 pl-6">File Name</th>
+                                                    <th className="p-4">Uploaded By</th>
+                                                    <th className="p-4">Type</th>
+                                                    <th className="p-4">PII Detected</th>
+                                                    <th className="p-4">Status</th>
+                                                    <th className="p-4 pr-6">Date</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 text-sm">
+                                                {activity.map(row => {
+                                                    const tc = fileTypeColors[row.fileType] || 'bg-slate-100 text-slate-500';
+                                                    const sb = statusBadge[row.status] || statusBadge['Pending'];
+                                                    return (
+                                                        <tr key={row.id} className="hover:bg-slate-50/60 transition-colors">
+                                                            <td className="p-4 pl-6">
+                                                                <div className="flex items-center space-x-3">
+                                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[9px] font-bold shrink-0 ${tc}`}>{row.fileType}</div>
+                                                                    <span className="font-semibold text-slate-800 truncate max-w-[160px]">{row.fileName}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className="flex items-center space-x-2">
+                                                                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-deepblue to-cyan-500 flex items-center justify-center text-white text-[8px] font-bold">{row.uploadedBy.substring(0, 2).toUpperCase()}</div>
+                                                                    <span className="text-xs font-medium text-slate-600">{row.uploadedBy}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4"><span className={`text-[11px] font-bold px-2 py-1 rounded-lg ${tc}`}>{row.fileType}</span></td>
+                                                            <td className="p-4">
+                                                                {row.pii > 0 ? <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">{row.pii} Entities</span> : <span className="text-xs text-slate-400">{"\u2014"}</span>}
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border ${sb}`}>
+                                                                    {row.status === 'Pending' ? <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span> : null}
+                                                                    {row.status}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-4 pr-6 text-xs text-slate-500 font-medium whitespace-nowrap">{row.date}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<StatisticalAnalysisPage />);
+    </script>
+</body>
+
+</html>

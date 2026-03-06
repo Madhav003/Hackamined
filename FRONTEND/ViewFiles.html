@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PII Sanitization System - View Files</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { deepblue: '#1E3A8A', cyan: '#06B6D4', lightbg: '#F8FAFC' },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #F8FAFC;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        .dark-glass {
+            background: linear-gradient(145deg, #1E3A8A, #152C6B);
+            box-shadow: inset 0 0 20px rgba(6, 182, 212, 0.1);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 10px 30px -10px rgba(30, 58, 138, 0.05);
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94A3B8;
+        }
+
+        .sidebar-transition {
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .skeleton {
+            background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: 200% 0;
+            }
+
+            100% {
+                background-position: -200% 0;
+            }
+        }
+
+        .tab-indicator {
+            transition: left 0.3s ease, width 0.3s ease;
+        }
+    </style>
+
+
+
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <!-- Firebase Config -->
+    <script type="module" src="firebaseConfig.js"></script>
+</head>
+
+<body class="text-slate-800 antialiased h-screen flex overflow-hidden">
+    <div id="root" class="w-full h-full"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo } = React;
+
+        // ==================== ICONS ====================
+        const Icons = {
+            LayoutDashboard: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>,
+            Upload: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
+            Eye: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
+            Users: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
+            ClipboardList: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>,
+            Download: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
+            BarChart: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+            LogOut: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
+            Menu: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>,
+            Bell: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
+            Shield: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
+            Search: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
+            Filter: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>,
+            DownloadSm: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
+            EyeSm: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
+            Info: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+            // Stat icons
+            FileUpLrg: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
+            ScanLrg: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
+            ShieldLrg: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
+            ClockLrg: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+        };
+
+        const fileTypeColors = {
+            PDF: 'bg-rose-100 text-rose-600', SQL: 'bg-indigo-100 text-indigo-600', CSV: 'bg-emerald-100 text-emerald-600',
+            JSON: 'bg-amber-100 text-amber-600', TXT: 'bg-slate-200 text-slate-600', DOCX: 'bg-blue-100 text-blue-600',
+            XLSX: 'bg-green-100 text-green-600', PNG: 'bg-purple-100 text-purple-600', JPG: 'bg-purple-100 text-purple-600',
+        };
+
+        const ITEMS_PER_PAGE = 6;
+
+        // ==================== MAIN COMPONENT ====================
+        const ViewFilesPage = () => {
+            const [sidebarOpen, setSidebarOpen] = useState(false);
+            const activeMenu = 'View Files';
+            const [userName, setUserName] = useState('Admin User');
+
+            const [originalFiles, setOriginalFiles] = useState([]);
+            const [sanitizedFiles, setSanitizedFiles] = useState([]);
+
+            const [activeTab, setActiveTab] = useState('original');
+            const [search, setSearch] = useState('');
+            const [filterType, setFilterType] = useState('All');
+            const [filterStatus, setFilterStatus] = useState('All');
+            const [currentPage, setCurrentPage] = useState(1);
+
+            // Auth guard + real-time files listener
+            React.useEffect(() => {
+                const checkAuth = setInterval(() => {
+                    if (!window.firebaseAuth) return;
+                    clearInterval(checkAuth);
+                    window.onAuthStateChanged(window.firebaseAuth, async (user) => {
+                        if (!user) { window.location.href = 'Login.html'; return; }
+                        const uDoc = await window.getDoc(window.doc(window.firebaseDb, 'users', user.uid));
+                        if (!uDoc.exists() || (uDoc.data().role || '').toLowerCase() !== 'admin') { window.location.href = 'UserDashboard.html'; return; }
+                        setUserName(uDoc.data().name || 'Admin User');
+
+                        // Live listener on files
+                        window.onSnapshot(window.collection(window.firebaseDb, 'files'), (snapshot) => {
+                            const all = snapshot.docs.map(d => {
+                                const data = d.data();
+                                const t = data.uploadTime && data.uploadTime.toDate ? data.uploadTime.toDate() : new Date();
+                                const ext = data.fileName.split('.').pop().toUpperCase();
+                                return { id: d.id, ...data, fileType: ext, uploadDate: t.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) };
+                            });
+                            setOriginalFiles(all.map(f => ({
+                                id: f.id, fileName: f.fileName, uploadedBy: f.uploadedBy || 'Unknown', fileType: f.fileType,
+                                uploadDate: f.uploadDate, scanStatus: f.status === 'completed' ? 'Scanned' : f.status === 'processing' ? 'Scanned' : 'Pending Scan', piiDetected: 0,
+                                downloadURL: f.originalFileURL || '#'
+                            })));
+                            setSanitizedFiles(all.filter(f => f.status === 'completed').map(f => ({
+                                id: f.id, fileName: f.fileName.replace(/\./, '_sanitized.'), originalFile: f.fileName,
+                                sanitizedDate: f.uploadDate, piiRemoved: 0, status: 'Completed',
+                                downloadURL: f.sanitizedFileURL || f.originalFileURL || '#'
+                            })));
+                        });
+                    });
+                }, 100);
+                return () => clearInterval(checkAuth);
+            }, []);
+
+            const handleLogout = async () => {
+                try { await window.signOut(window.firebaseAuth); window.location.href = 'Login.html'; } catch (e) { console.error(e); }
+            };
+
+            const menuItems = [
+                { name: 'Dashboard', icon: Icons.LayoutDashboard, href: 'Dashboard.html' },
+                { name: 'Upload Files', icon: Icons.Upload, href: 'Upload.html' },
+                { name: 'View Files', icon: Icons.Eye, href: 'ViewFiles.html' },
+                { name: 'Manage Users', icon: Icons.Users, href: 'ManageUsers.html' },
+                { name: 'Audit Logs', icon: Icons.ClipboardList, href: 'AuditLogs.html' },
+                { name: 'Download PII', icon: Icons.Download, href: 'DownloadPII.html' },
+                { name: 'Statistical Analysis', icon: Icons.BarChart, href: 'StatisticalAnalysis.html' },
+            ];
+
+            // Stats computed dynamically
+            const stats = [
+                { label: 'Total Files Uploaded', value: originalFiles.length, icon: Icons.FileUpLrg, color: 'blue' },
+                { label: 'Files Scanned', value: originalFiles.filter(f => f.scanStatus === 'Scanned').length, icon: Icons.ScanLrg, color: 'cyan' },
+                { label: 'Sanitized Files', value: sanitizedFiles.filter(f => f.status === 'Completed').length, icon: Icons.ShieldLrg, color: 'emerald' },
+                { label: 'Pending Files', value: originalFiles.filter(f => f.scanStatus === 'Pending Scan').length, icon: Icons.ClockLrg, color: 'amber' },
+            ];
+
+            // Filter current tab data
+            const currentData = activeTab === 'original' ? originalFiles : sanitizedFiles;
+            const allFileTypes = [...new Set(currentData.map(f => f.fileType || '').filter(Boolean))];
+            const statusOptions = activeTab === 'original' ? ['Pending Scan', 'Scanned', 'Failed'] : ['Processing', 'Completed', 'Failed'];
+
+            const filtered = useMemo(() => {
+                return currentData.filter(f => {
+                    const q = search.toLowerCase();
+                    const nameField = f.fileName || '';
+                    const uploaderField = f.uploadedBy || f.originalFile || '';
+                    const matchSearch = !q || nameField.toLowerCase().includes(q) || uploaderField.toLowerCase().includes(q);
+                    const matchType = filterType === 'All' || f.fileType === filterType;
+                    const statusField = activeTab === 'original' ? f.scanStatus : f.status;
+                    const matchStatus = filterStatus === 'All' || statusField === filterStatus;
+                    return matchSearch && matchType && matchStatus;
+                });
+            }, [currentData, search, filterType, filterStatus, activeTab]);
+
+            const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+            const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+            const switchTab = (tab) => { setActiveTab(tab); setCurrentPage(1); setSearch(''); setFilterType('All'); setFilterStatus('All'); };
+
+            // Scan status badge styles
+            const scanBadge = { 'Pending Scan': 'bg-amber-100 text-amber-700 border-amber-200', 'Scanned': 'bg-cyan-100 text-cyan-700 border-cyan-200', 'Failed': 'bg-red-100 text-red-600 border-red-200' };
+            const sanitizedBadge = { 'Processing': 'bg-amber-100 text-amber-700 border-amber-200', 'Completed': 'bg-emerald-100 text-emerald-700 border-emerald-200', 'Failed': 'bg-red-100 text-red-600 border-red-200' };
+
+            return (
+                <div className="flex h-screen w-full bg-slate-50 relative">
+                    {sidebarOpen ? <div className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setSidebarOpen(false)}></div> : null}
+
+                    {/* SIDEBAR */}
+                    <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-72 dark-glass text-white flex flex-col sidebar-transition ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
+                        <div className="h-20 flex items-center px-6 border-b border-white/10 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/20 rounded-full blur-2xl transform translate-x-10 -translate-y-10"></div>
+                            <Icons.Shield />
+                            <div className="ml-3 flex flex-col"><span className="text-lg font-extrabold tracking-wide leading-tight">PII Sanitization</span><span className="text-xs text-cyan-400 font-medium tracking-wider">SYSTEM</span></div>
+                        </div>
+                        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1.5">
+                            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 ml-2">Main Menu</div>
+                            {menuItems.map(item => (
+                                <button key={item.name} onClick={() => { if (item.name !== activeMenu) window.location.href = item.href; }} className={`w-full flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 ${item.name === activeMenu ? 'bg-gradient-to-r from-cyan-500/20 to-blue-600/20 text-cyan-300 border border-cyan-500/30 shadow-[inset_0_0_15px_rgba(6,182,212,0.15)] font-semibold' : 'text-slate-300 hover:bg-white/5 hover:text-white font-medium cursor-pointer'}`}>
+                                    <item.icon /><span className="ml-3.5">{item.name}</span>
+                                    {item.name === activeMenu ? <div className="ml-auto w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,1)]"></div> : null}
+                                </button>
+                            ))}
+                        </nav>
+                        <div className="p-4 border-t border-white/10"><button onClick={handleLogout} className="w-full flex items-center px-4 py-3 rounded-xl text-slate-300 hover:bg-white/5 transition-all"><Icons.LogOut /><span className="ml-3.5 font-medium">Logout</span></button></div>
+                    </aside>
+
+                    {/* MAIN */}
+                    <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+                        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-cyan-100/40 rounded-full blur-[100px] pointer-events-none -z-10 -translate-y-1/2 translate-x-1/2"></div>
+                        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-blue-100/30 rounded-full blur-[120px] pointer-events-none -z-10 translate-y-1/3 -translate-x-1/3"></div>
+
+                        {/* NAVBAR */}
+                        <header className="h-20 glass-card border-b border-slate-200/60 shadow-sm flex items-center justify-between px-6 lg:px-10 z-10 shrink-0 sticky top-0">
+                            <div className="flex items-center">
+                                <button className="lg:hidden text-slate-500 hover:text-deepblue mr-4 p-1" onClick={() => setSidebarOpen(true)}><Icons.Menu /></button>
+                                <h1 className="text-xl lg:text-2xl font-bold text-slate-800 tracking-tight">View Files</h1>
+                            </div>
+                            <div className="flex items-center space-x-5 lg:space-x-7">
+                                <div className="hidden md:flex relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Icons.Search /></div>
+                                    <input type="text" className="pl-10 pr-4 py-2 bg-slate-100 border-none rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 w-48 lg:w-64 transition-all focus:bg-white focus:shadow-md" placeholder="Search files..." />
+                                </div>
+                                <button className="relative text-slate-500 hover:text-deepblue transition-colors p-1"><Icons.Bell /><span className="absolute top-0 right-0 h-2.5 w-2.5 bg-red-500 border-2 border-white rounded-full"></span></button>
+                                <div className="flex items-center space-x-3 cursor-pointer pl-2 border-l border-slate-200">
+                                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-deepblue to-cyan-500 p-[2px]"><div className="w-full h-full rounded-full border-2 border-white bg-white flex items-center justify-center"><svg className="w-5 h-5 text-slate-300 mt-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"></path></svg></div></div>
+                                    <div className="hidden lg:block text-left"><div className="text-sm font-semibold text-slate-700 leading-tight">Admin User</div><div className="text-[11px] text-slate-500 font-medium">Platform Admin</div></div>
+                                </div>
+                            </div>
+                        </header>
+
+                        {/* CONTENT */}
+                        <div className="flex-1 overflow-y-auto p-6 lg:p-10 pb-24 relative z-0">
+                            <div className="max-w-7xl mx-auto space-y-8">
+
+                                <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start space-x-3 shadow-sm">
+                                    <div className="text-amber-500 mt-0.5 shrink-0"><svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+                                    <div><h3 className="text-sm font-bold text-amber-800">Demo Mode</h3><p className="text-xs text-amber-700 mt-0.5">Showing sample data. Connect Firebase for real-time files.</p></div>
+                                </div>
+
+                                {/* Header */}
+                                <div>
+                                    <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">File Repository</h2>
+                                    <p className="text-slate-500 text-[15px] mt-1 max-w-3xl leading-relaxed">Access and manage both original uploaded files and their sanitized versions after PII detection and removal.</p>
+                                </div>
+
+                                {/* Stats */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    {stats.map((s, i) => {
+                                        const Icon = s.icon; return (
+                                            <div key={i} className="glass-card bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl transition-shadow duration-300 border border-slate-100 group relative overflow-hidden">
+                                                <div className="absolute inset-0 bg-gradient-to-br from-transparent to-slate-50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                                <div className="flex justify-between items-start relative z-10">
+                                                    <div><h3 className="text-3xl font-extrabold text-slate-800 mb-1">{s.value}</h3><p className="text-sm font-semibold text-slate-500">{s.label}</p></div>
+                                                    <div className={`p-3 rounded-xl bg-${s.color}-50 text-${s.color}-500 group-hover:scale-110 transition-transform duration-300`}><Icon /></div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Tabs */}
+                                <div className="glass-card bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                                    <div className="flex border-b border-slate-200 relative">
+                                        <button onClick={() => switchTab('original')} className={`flex-1 sm:flex-none px-8 py-4 text-sm font-bold transition-colors relative ${activeTab === 'original' ? 'text-deepblue' : 'text-slate-500 hover:text-slate-700'}`}>
+                                            <span className="flex items-center justify-center gap-2">
+                                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                Original Files
+                                                <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{originalFiles.length}</span>
+                                            </span>
+                                            {activeTab === 'original' ? <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-deepblue to-cyan-500"></div> : null}
+                                        </button>
+                                        <button onClick={() => switchTab('sanitized')} className={`flex-1 sm:flex-none px-8 py-4 text-sm font-bold transition-colors relative ${activeTab === 'sanitized' ? 'text-deepblue' : 'text-slate-500 hover:text-slate-700'}`}>
+                                            <span className="flex items-center justify-center gap-2">
+                                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                                Sanitized Files
+                                                <span className="bg-emerald-100 text-emerald-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{sanitizedFiles.length}</span>
+                                            </span>
+                                            {activeTab === 'sanitized' ? <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-deepblue to-cyan-500"></div> : null}
+                                        </button>
+                                    </div>
+
+                                    {/* Filters */}
+                                    <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-start lg:items-center bg-slate-50/30">
+                                        <div className="relative flex-1 w-full lg:max-w-sm">
+                                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"><Icons.Search /></div>
+                                            <input type="text" value={search} onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }} className="pl-10 pr-4 py-2.5 w-full bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 transition-all" placeholder={activeTab === 'original' ? 'Search by file name or uploader...' : 'Search by file name...'} />
+                                        </div>
+                                        <div className="flex items-center gap-2"><Icons.Filter />
+                                            <select value={filterType} onChange={(e) => { setFilterType(e.target.value); setCurrentPage(1); }} className="py-2.5 px-3 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 cursor-pointer"><option value="All">All Types</option>{allFileTypes.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                                        </div>
+                                        <div>
+                                            <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }} className="py-2.5 px-3 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 cursor-pointer"><option value="All">All Statuses</option>{statusOptions.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                                        </div>
+                                        <div className="text-xs font-semibold text-slate-400 lg:ml-auto">{filtered.length + " file" + (filtered.length !== 1 ? "s" : "")}</div>
+                                    </div>
+
+                                    {/* TABLE */}
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-500 font-semibold sticky top-0">
+                                                    <th className="p-4 pl-6">File Name</th>
+                                                    <th className="p-4">{activeTab === 'original' ? 'Uploaded By' : 'Original File'}</th>
+                                                    {activeTab === 'original' ? <th className="p-4">Type</th> : null}
+                                                    <th className="p-4">{activeTab === 'original' ? 'Upload Date' : 'Sanitized Date'}</th>
+                                                    <th className="p-4">{activeTab === 'original' ? 'Scan Status' : 'Status'}</th>
+                                                    <th className="p-4">{activeTab === 'original' ? 'PII Detected' : 'PII Removed'}</th>
+                                                    <th className="p-4 pr-6 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 text-sm">
+                                                {
+                                                    paginated.length === 0 ? (
+                                                        <tr><td colSpan="7" className="p-12 text-center">
+                                                            <div className="flex flex-col items-center text-slate-400">
+                                                                <svg className="h-12 w-12 mb-3 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                                <p className="font-semibold text-slate-500">{activeTab === 'original' ? 'No files uploaded yet.' : 'No sanitized files available yet.'}</p>
+                                                                <p className="text-xs mt-1">Upload files to start PII detection.</p>
+                                                            </div>
+                                                        </td></tr>
+                                                    ) :
+
+                                                        activeTab === 'original' ? paginated.map(file => {
+                                                            const tc = fileTypeColors[file.fileType] || 'bg-slate-100 text-slate-500';
+                                                            const sb = scanBadge[file.scanStatus] || scanBadge['Pending Scan'];
+                                                            return (
+                                                                <tr key={file.id} className="hover:bg-slate-50/60 transition-colors group">
+                                                                    <td className="p-4 pl-6">
+                                                                        <div className="flex items-center space-x-3">
+                                                                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 ${tc}`}>{file.fileType}</div>
+                                                                            <span className="font-semibold text-slate-800 truncate max-w-[180px]">{file.fileName}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="p-4">
+                                                                        <div className="flex items-center space-x-2">
+                                                                            <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-deepblue to-cyan-500 flex items-center justify-center text-white text-[8px] font-bold">{(file.uploadedBy || '').substring(0, 2).toUpperCase()}</div>
+                                                                            <span className="text-xs font-medium text-slate-600">{file.uploadedBy}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="p-4"><span className={`text-[11px] font-bold px-2 py-1 rounded-lg ${tc}`}>{file.fileType}</span></td>
+                                                                    <td className="p-4 text-xs text-slate-500 font-medium whitespace-nowrap">{file.uploadDate}</td>
+                                                                    <td className="p-4">
+                                                                        <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border ${sb}`}>
+                                                                            {file.scanStatus === 'Pending Scan' ? <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span> : null}
+                                                                            {file.scanStatus}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="p-4">
+                                                                        {file.piiDetected > 0 ? (
+                                                                            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">{file.piiDetected} Entities</span>
+                                                                        ) : <span className="text-xs text-slate-400">{"\u2014"}</span>}
+                                                                    </td>
+                                                                    <td className="p-4 pr-6 text-right">
+                                                                        <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            <button title="View File" className="p-1.5 text-slate-400 hover:text-deepblue hover:bg-blue-50 rounded-lg transition-colors"><Icons.EyeSm /></button>
+                                                                            <button title="Scan Details" className="p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"><Icons.Info /></button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        }) : paginated.map(file => {
+                                                            const sb = sanitizedBadge[file.status] || sanitizedBadge['Processing'];
+                                                            const ext = (file.fileName || '').split('.').pop().toUpperCase();
+                                                            const tc = fileTypeColors[ext] || 'bg-emerald-100 text-emerald-600';
+                                                            return (
+                                                                <tr key={file.id} className="hover:bg-slate-50/60 transition-colors group">
+                                                                    <td className="p-4 pl-6">
+                                                                        <div className="flex items-center space-x-3">
+                                                                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-emerald-100 text-emerald-600`}>
+                                                                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                                            </div>
+                                                                            <span className="font-semibold text-slate-800 truncate max-w-[180px]">{file.fileName}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="p-4"><span className="text-xs font-mono bg-slate-50 text-slate-600 px-2 py-1 rounded truncate max-w-[150px] inline-block">{file.originalFile}</span></td>
+                                                                    <td className="p-4 text-xs text-slate-500 font-medium whitespace-nowrap">{file.sanitizedDate}</td>
+                                                                    <td className="p-4">
+                                                                        <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border ${sb}`}>
+                                                                            {file.status === 'Processing' ? <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span> : null}
+                                                                            {file.status}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="p-4">
+                                                                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">{file.piiRemoved} Removed</span>
+                                                                    </td>
+                                                                    <td className="p-4 pr-6 text-right">
+                                                                        <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            <button title="View File" className="p-1.5 text-slate-400 hover:text-deepblue hover:bg-blue-50 rounded-lg transition-colors"><Icons.EyeSm /></button>
+                                                                            <button title="Scan Details" className="p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"><Icons.Info /></button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Pagination */}
+                                    {totalPages > 1 ? (
+                                        <div className="p-4 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
+                                            <span>{"Showing " + ((currentPage - 1) * ITEMS_PER_PAGE + 1) + "\u2013" + Math.min(currentPage * ITEMS_PER_PAGE, filtered.length) + " of " + filtered.length}</span>
+                                            <div className="flex gap-1">
+                                                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium">Prev</button>
+                                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                                                    <button key={p} onClick={() => setCurrentPage(p)} className={`px-3 py-1.5 rounded-lg font-bold ${p === currentPage ? 'bg-deepblue text-white shadow-sm' : 'border border-slate-200 hover:bg-slate-50'}`}>{p}</button>
+                                                ))}
+                                                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium">Next</button>
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                </div>
+
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ViewFilesPage />);
+    </script>
+</body>
+
+</html>

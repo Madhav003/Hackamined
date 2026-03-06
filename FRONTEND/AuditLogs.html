@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PII Sanitization System - Audit Logs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        deepblue: '#1E3A8A',
+                        cyan: '#06B6D4',
+                        lightbg: '#F8FAFC',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    animation: {
+                        'float': 'float 4s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-8px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F8FAFC;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        .dark-glass {
+            background: linear-gradient(145deg, #1E3A8A, #152C6B);
+            box-shadow: inset 0 0 20px rgba(6, 182, 212, 0.1);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 10px 30px -10px rgba(30, 58, 138, 0.05);
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94A3B8;
+        }
+
+        .sidebar-transition {
+            transition: transform 0.3s ease-in-out;
+        }
+    </style>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <!-- Firebase Config -->
+    <script type="module" src="firebaseConfig.js"></script>
+</head>
+
+<body class="text-slate-800 antialiased h-screen flex overflow-hidden">
+    <div id="root" class="w-full h-full"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+
+        const Icons = {
+            LayoutDashboard: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>,
+            Upload: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
+            Eye: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
+            Users: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
+            ClipboardList: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>,
+            Download: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
+            BarChart: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+            LogOut: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
+            Menu: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>,
+            Bell: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
+            Shield: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
+            Search: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
+            Activity: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
+            FileUp: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
+            FileDown: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
+            UserLogin: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>,
+            Filter: () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>,
+        };
+
+        // Action badge styles
+        const actionBadge = {
+            'File Upload': { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200', dot: 'bg-blue-500' },
+            'File Download': { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+            'File Scan': { bg: 'bg-cyan-100', text: 'text-cyan-700', border: 'border-cyan-200', dot: 'bg-cyan-500' },
+            'PII Detection': { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-500' },
+            'User Login': { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200', dot: 'bg-purple-500' },
+            'User Logout': { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200', dot: 'bg-slate-400' },
+            'Permission': { bg: 'bg-rose-100', text: 'text-rose-700', border: 'border-rose-200', dot: 'bg-rose-500' },
+        };
+
+        const statusBadge = {
+            'Success': 'bg-emerald-50 text-emerald-600 border-emerald-100',
+            'Warning': 'bg-amber-50 text-amber-600 border-amber-100',
+            'Failed': 'bg-red-50 text-red-600 border-red-100',
+            'Info': 'bg-slate-50 text-slate-600 border-slate-200',
+        };
+
+        const ITEMS_PER_PAGE = 8;
+
+        const AuditLogsPage = () => {
+            const [sidebarOpen, setSidebarOpen] = useState(false);
+            const activeMenu = 'Audit Logs';
+            const [userName, setUserName] = useState('Admin');
+            const [allLogs, setAllLogs] = useState([]);
+
+            const [searchQuery, setSearchQuery] = useState('');
+            const [filterAction, setFilterAction] = useState('All');
+            const [filterRole, setFilterRole] = useState('All');
+            const [currentPage, setCurrentPage] = useState(1);
+
+            // Firebase auth guard + data fetch
+            useEffect(() => {
+                const checkAuth = setInterval(() => {
+                    if (window.firebaseAuth) {
+                        clearInterval(checkAuth);
+                        window.onAuthStateChanged(window.firebaseAuth, async (user) => {
+                            if (!user) { window.location.href = 'Login.html'; return; }
+                            const userDoc = await window.getDoc(window.doc(window.firebaseDb, 'users', user.uid));
+                            if (!userDoc.exists()) { window.location.href = 'Login.html'; return; }
+                            if ((userDoc.data().role || '').toLowerCase() !== 'admin') { window.location.href = 'UserDashboard.html'; return; }
+                            setUserName(userDoc.data().name || 'Admin');
+                            // Build audit logs from files collection
+                            const q = window.query(window.collection(window.firebaseDb, 'files'));
+                            window.onSnapshot(q, (snap) => {
+                                const logs = [];
+                                let logId = 1;
+                                snap.docs.forEach(d => {
+                                    const data = d.data();
+                                    const ts = data.uploadTime ? (data.uploadTime.toDate ? data.uploadTime.toDate() : new Date(data.uploadTime)) : new Date();
+                                    const dateStr = ts.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) + ' ' + ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                                    // Upload event
+                                    logs.push({ id: logId++, userName: data.uploadedBy || 'Admin', role: 'Admin', actionType: 'File Upload', fileName: data.fileName || 'Unknown', description: 'File uploaded for PII scanning', dateTime: dateStr, status: 'Success' });
+                                    // Scan event
+                                    const scanTs = new Date(ts.getTime() + 60000);
+                                    const scanDateStr = scanTs.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) + ' ' + scanTs.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                                    if ((data.status || '').toLowerCase() === 'completed') {
+                                        logs.push({ id: logId++, userName: 'System', role: 'Admin', actionType: 'File Scan', fileName: data.fileName || 'Unknown', description: 'PII detection scan completed', dateTime: scanDateStr, status: 'Success' });
+                                    } else {
+                                        logs.push({ id: logId++, userName: 'System', role: 'Admin', actionType: 'File Scan', fileName: data.fileName || 'Unknown', description: 'File scan in progress', dateTime: scanDateStr, status: 'Warning' });
+                                    }
+                                });
+                                // Sort by dateTime descending
+                                logs.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
+                                setAllLogs(logs);
+                            });
+                        });
+                    }
+                }, 100);
+                return () => clearInterval(checkAuth);
+            }, []);
+
+            const menuItems = [
+                { name: 'Dashboard', icon: Icons.LayoutDashboard, href: 'Dashboard.html' },
+                { name: 'Upload Files', icon: Icons.Upload, href: 'Upload.html' },
+                { name: 'View Files', icon: Icons.Eye, href: 'ViewFiles.html' },
+                { name: 'Manage Users', icon: Icons.Users, href: 'ManageUsers.html' },
+                { name: 'Audit Logs', icon: Icons.ClipboardList, href: 'AuditLogs.html' },
+                { name: 'Download PII', icon: Icons.Download, href: 'DownloadPII.html' },
+                { name: 'Statistical Analysis', icon: Icons.BarChart, href: 'StatisticalAnalysis.html' },
+            ];
+
+            // Stats
+            const stats = [
+                { label: 'Total Log Entries', value: allLogs.length.toString(), icon: Icons.Activity, color: 'blue' },
+                { label: 'File Upload Events', value: allLogs.filter(l => l.actionType === 'File Upload').length.toString(), icon: Icons.FileUp, color: 'cyan' },
+                { label: 'File Download Events', value: allLogs.filter(l => l.actionType === 'File Download').length.toString(), icon: Icons.FileDown, color: 'emerald' },
+                { label: 'User Login Events', value: allLogs.filter(l => l.actionType === 'User Login').length.toString(), icon: Icons.UserLogin, color: 'purple' },
+            ];
+
+            // Filtering logic
+            const filteredLogs = useMemo(() => {
+                return allLogs.filter(log => {
+                    const matchSearch = searchQuery === '' ||
+                        log.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        log.fileName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        log.actionType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        log.description.toLowerCase().includes(searchQuery.toLowerCase());
+                    const matchAction = filterAction === 'All' || log.actionType === filterAction;
+                    const matchRole = filterRole === 'All' || log.role === filterRole;
+                    return matchSearch && matchAction && matchRole;
+                });
+            }, [searchQuery, filterAction, filterRole, allLogs]);
+
+            const totalPages = Math.ceil(filteredLogs.length / ITEMS_PER_PAGE);
+            const paginatedLogs = filteredLogs.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+            // Reset page when filters change
+            const handleFilterChange = (setter) => (val) => { setter(val); setCurrentPage(1); };
+
+            const actionTypes = ['All', 'File Upload', 'File Download', 'File Scan', 'PII Detection', 'User Login', 'User Logout', 'Permission'];
+            const roles = ['All', 'Admin', 'Standard'];
+
+            return (
+                <div className="flex h-screen w-full bg-slate-50 relative">
+                    {sidebarOpen && <div className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setSidebarOpen(false)}></div>}
+
+                    {/* Sidebar */}
+                    <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-72 dark-glass text-white flex flex-col sidebar-transition ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
+                        <div className="h-20 flex items-center px-6 border-b border-white/10 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/20 rounded-full blur-2xl transform translate-x-10 -translate-y-10"></div>
+                            <Icons.Shield />
+                            <div className="ml-3 flex flex-col">
+                                <span className="text-lg font-extrabold tracking-wide leading-tight">PII Sanitization</span>
+                                <span className="text-xs text-cyan-400 font-medium tracking-wider">SYSTEM</span>
+                            </div>
+                        </div>
+                        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1.5">
+                            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 ml-2">Main Menu</div>
+                            {menuItems.map((item) => (
+                                <button key={item.name} onClick={() => { if (item.name !== activeMenu) window.location.href = item.href; }} className={`w-full flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 ${item.name === activeMenu ? 'bg-gradient-to-r from-cyan-500/20 to-blue-600/20 text-cyan-300 border border-cyan-500/30 shadow-[inset_0_0_15px_rgba(6,182,212,0.15)] font-semibold' : 'text-slate-300 hover:bg-white/5 hover:text-white font-medium cursor-pointer'}`}>
+                                    <item.icon />
+                                    <span className="ml-3.5">{item.name}</span>
+                                    {item.name === activeMenu && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,1)]"></div>}
+                                </button>
+                            ))}
+                        </nav>
+                        <div className="p-4 border-t border-white/10">
+                            <button onClick={async () => { try { await window.signOut(window.firebaseAuth); } catch (e) { } window.location.href = 'Login.html'; }} className="w-full flex items-center px-4 py-3 rounded-xl text-slate-300 hover:bg-white/5 transition-all">
+                                <Icons.LogOut />
+                                <span className="ml-3.5 font-medium">Logout</span>
+                            </button>
+                        </div>
+                    </aside>
+
+                    {/* Main */}
+                    <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+                        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-cyan-100/40 rounded-full blur-[100px] pointer-events-none -z-10 -translate-y-1/2 translate-x-1/2"></div>
+                        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-blue-100/30 rounded-full blur-[120px] pointer-events-none -z-10 translate-y-1/3 -translate-x-1/3"></div>
+
+                        {/* Navbar */}
+                        <header className="h-20 glass-card border-b border-slate-200/60 shadow-sm flex items-center justify-between px-6 lg:px-10 z-10 shrink-0 sticky top-0">
+                            <div className="flex items-center">
+                                <button className="lg:hidden text-slate-500 hover:text-deepblue mr-4 transition-colors p-1" onClick={() => setSidebarOpen(true)}>
+                                    <Icons.Menu />
+                                </button>
+                                <h1 className="text-xl lg:text-2xl font-bold text-slate-800 tracking-tight">Audit Logs</h1>
+                            </div>
+                            <div className="flex items-center space-x-5 lg:space-x-7">
+                                <button className="relative text-slate-500 hover:text-deepblue transition-colors p-1">
+                                    <Icons.Bell />
+                                    <span className="absolute top-0 right-0 h-2.5 w-2.5 bg-red-500 border-2 border-white rounded-full"></span>
+                                </button>
+                                <div className="flex items-center space-x-3 cursor-pointer pl-2 border-l border-slate-200">
+                                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-deepblue to-cyan-500 p-[2px]">
+                                        <div className="w-full h-full rounded-full border-2 border-white bg-white flex items-center justify-center">
+                                            <svg className="w-5 h-5 text-slate-300 mt-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"></path></svg>
+                                        </div>
+                                    </div>
+                                    <div className="hidden lg:block text-left">
+                                        <div className="text-sm font-semibold text-slate-700 leading-tight">{userName}</div>
+                                        <div className="text-[11px] text-slate-500 font-medium">Platform Admin</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </header>
+
+                        {/* Scrollable Content */}
+                        <div className="flex-1 overflow-y-auto p-6 lg:p-10 pb-24 relative z-0">
+                            <div className="max-w-7xl mx-auto space-y-8">
+
+                                {/* Header */}
+                                <div>
+                                    <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Audit Logs & System Activity</h2>
+                                    <p className="text-slate-500 text-[15px] mt-2 max-w-3xl leading-relaxed">
+                                        Monitor all system activities including file uploads, PII detection events, downloads, and user access to maintain transparency and security.
+                                    </p>
+                                </div>
+
+                                {/* Stats Cards */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    {stats.map((stat, idx) => {
+                                        const Icon = stat.icon;
+                                        return (
+                                            <div key={idx} className="glass-card bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl transition-shadow duration-300 border border-slate-100 group relative overflow-hidden">
+                                                <div className="absolute inset-0 bg-gradient-to-br from-transparent to-slate-50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                                <div className="flex justify-between items-start relative z-10">
+                                                    <div>
+                                                        <h3 className="text-3xl font-extrabold text-slate-800 mb-1">{stat.value}</h3>
+                                                        <p className="text-sm font-semibold text-slate-500">{stat.label}</p>
+                                                    </div>
+                                                    <div className={`p-3 rounded-xl bg-${stat.color}-50 text-${stat.color}-500 transform group-hover:scale-110 transition-transform duration-300`}>
+                                                        <Icon />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Filter Bar */}
+                                <div className="glass-card bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col lg:flex-row gap-4 items-start lg:items-center">
+                                    {/* Search */}
+                                    <div className="relative flex-1 w-full lg:max-w-sm">
+                                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                            <Icons.Search />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={searchQuery}
+                                            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                                            className="pl-10 pr-4 py-2.5 w-full bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 transition-all"
+                                            placeholder="Search by user, file, or action..."
+                                        />
+                                    </div>
+
+                                    {/* Action Filter */}
+                                    <div className="flex items-center gap-2">
+                                        <Icons.Filter />
+                                        <select
+                                            value={filterAction}
+                                            onChange={(e) => handleFilterChange(setFilterAction)(e.target.value)}
+                                            className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 cursor-pointer"
+                                        >
+                                            {actionTypes.map(a => <option key={a} value={a}>{a === 'All' ? 'All Actions' : a}</option>)}
+                                        </select>
+                                    </div>
+
+                                    {/* Role Filter */}
+                                    <div>
+                                        <select
+                                            value={filterRole}
+                                            onChange={(e) => handleFilterChange(setFilterRole)(e.target.value)}
+                                            className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 cursor-pointer"
+                                        >
+                                            {roles.map(r => <option key={r} value={r}>{r === 'All' ? 'All Roles' : r}</option>)}
+                                        </select>
+                                    </div>
+
+                                    {/* Result count */}
+                                    <div className="text-xs font-semibold text-slate-400 lg:ml-auto whitespace-nowrap">
+                                        {filteredLogs.length} result{filteredLogs.length !== 1 && 's'}
+                                    </div>
+                                </div>
+
+                                {/* Audit Log Table */}
+                                <div className="glass-card bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-500 font-semibold sticky top-0">
+                                                    <th className="p-4 pl-6">User</th>
+                                                    <th className="p-4">Role</th>
+                                                    <th className="p-4">Action</th>
+                                                    <th className="p-4">File</th>
+                                                    <th className="p-4">Description</th>
+                                                    <th className="p-4">Date & Time</th>
+                                                    <th className="p-4 pr-6 text-right">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 text-sm">
+                                                {paginatedLogs.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan="7" className="p-12 text-center">
+                                                            <div className="flex flex-col items-center justify-center text-slate-400">
+                                                                <svg className="h-12 w-12 mb-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                                                <p className="font-semibold text-slate-500">No matching log entries found.</p>
+                                                                <p className="text-xs mt-1">Try adjusting your search or filters.</p>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ) : paginatedLogs.map(log => {
+                                                    const badge = actionBadge[log.actionType] || actionBadge['Permission'];
+                                                    const sBadge = statusBadge[log.status] || statusBadge['Info'];
+                                                    return (
+                                                        <tr key={log.id} className="hover:bg-slate-50/60 transition-colors group">
+                                                            <td className="p-4 pl-6">
+                                                                <div className="flex items-center space-x-3">
+                                                                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-deepblue to-cyan-500 flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
+                                                                        {log.userName.substring(0, 2).toUpperCase()}
+                                                                    </div>
+                                                                    <span className="font-semibold text-slate-800">{log.userName}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <span className={`text-xs font-bold px-2 py-1 rounded-lg ${log.role === 'Admin' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                                    {log.role}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${badge.bg} ${badge.text} ${badge.border}`}>
+                                                                    <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`}></span>
+                                                                    {log.actionType}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <span className="text-xs font-mono bg-slate-50 text-slate-600 px-2 py-1 rounded truncate max-w-[150px] inline-block">{log.fileName}</span>
+                                                            </td>
+                                                            <td className="p-4 text-slate-500 text-xs max-w-[220px] truncate">{log.description}</td>
+                                                            <td className="p-4 text-slate-500 text-xs whitespace-nowrap font-medium">{log.dateTime}</td>
+                                                            <td className="p-4 pr-6 text-right">
+                                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${sBadge}`}>
+                                                                    {log.status}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Pagination */}
+                                    {totalPages > 1 && (
+                                        <div className="p-4 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
+                                            <span>Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredLogs.length)} of {filteredLogs.length} entries</span>
+                                            <div className="flex gap-1">
+                                                <button
+                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                    disabled={currentPage === 1}
+                                                    className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors"
+                                                >Prev</button>
+                                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                                    <button
+                                                        key={page}
+                                                        onClick={() => setCurrentPage(page)}
+                                                        className={`px-3 py-1.5 rounded-lg font-bold transition-colors ${page === currentPage ? 'bg-deepblue text-white shadow-sm' : 'border border-slate-200 hover:bg-slate-50'}`}
+                                                    >{page}</button>
+                                                ))}
+                                                <button
+                                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                    disabled={currentPage === totalPages}
+                                                    className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors"
+                                                >Next</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<AuditLogsPage />);
+    </script>
+</body>
+
+</html>
