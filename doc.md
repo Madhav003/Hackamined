@@ -23,6 +23,7 @@
    - [OCR Pipeline (ocr_pipeline.py)](#411-ocr-pipeline-ocr_pipelinepy)
    - [File Handlers (file_handlers.py)](#412-file-handlers-file_handlerspy)
    - [Configuration (config.py)](#413-configuration-configpy)
+   - [Context Rules (context_rules.py)](#414-context-rules-context_rulespy)
 5. [Flask API Server (app.py)](#5-flask-api-server-apppy)
 6. [Frontend — React/Tailwind UI](#6-frontend--reacttailwind-ui)
 7. [Frontend–Backend Integration](#7-frontendbackend-integration)
@@ -124,6 +125,7 @@
 | **pandas** | ≥ 2.0.0 | Excel/CSV data handling |
 | **openpyxl** | ≥ 3.1.0 | XLSX read/write engine for pandas |
 | **pytesseract** | ≥ 0.3.10 | Python binding for Tesseract OCR |
+| **easyocr** | ≥ 1.7.0 | Pure-Python OCR fallback (PyTorch-based, no system binary needed) |
 | **opencv-python-headless** | ≥ 4.9.0 | Image preprocessing for OCR |
 | **Pillow** | ≥ 10.0.0 | Image I/O support |
 | **pytest** | ≥ 8.0.0 | Unit testing |
@@ -152,7 +154,8 @@
 | **Verhoeff checksum** | recognizers.py | Aadhaar number validation |
 | **Luhn algorithm** | Presidio built-in | Credit card number validation |
 | **spaCy NER** (transformer/CNN) | Presidio built-in | Named Entity Recognition for person/location |
-| **Tesseract LSTM** | ocr_pipeline.py | Optical Character Recognition |
+| **Tesseract LSTM** | ocr_pipeline.py | Optical Character Recognition (primary) |
+| **EasyOCR (CRAFT + CRNN)** | ocr_pipeline.py | OCR fallback when Tesseract is unavailable |
 | **Adaptive Gaussian thresholding** | ocr_pipeline.py | Image binarisation for OCR preprocessing |
 | **Bilateral filter** | ocr_pipeline.py | Edge-preserving noise removal |
 | **Weighted risk scoring** | threat_intel.py | Entity-weight × confidence threat calculation |
@@ -591,7 +594,7 @@ All DDL statements (`CREATE`, `ALTER`, `DROP`) are left untouched.
 
 ### 4.11 OCR Pipeline (`ocr_pipeline.py`)
 
-Extracts text from images using Tesseract OCR with computer vision preprocessing.
+Extracts text from images using OCR with computer vision preprocessing. Supports two OCR backends with automatic fallback.
 
 #### Step 1 — Image Preprocessing (`preprocess_image`)
 
@@ -602,9 +605,14 @@ Extracts text from images using Tesseract OCR with computer vision preprocessing
 
 #### Step 2 — Text Extraction (`extract_text_from_image`)
 
-- Runs Tesseract OCR with:
-  - **PSM 6** — assume a single uniform block of text
-  - **OEM 3** — LSTM neural network engine (highest accuracy)
+Uses a dual-engine strategy with automatic fallback:
+
+1. **Tesseract OCR** (primary) — if the system binary is installed:
+   - **PSM 6** — assume a single uniform block of text
+   - **OEM 3** — LSTM neural network engine (highest accuracy)
+2. **EasyOCR** (fallback) — pure Python, no system binary required:
+   - Uses CRAFT (Character Region Awareness for Text detection) + CRNN (Convolutional Recurrent Neural Network) for recognition
+   - The EasyOCR `Reader` is **cached as a module-level singleton** (`_get_easyocr_reader()`) so the ~50 MB model is loaded once and reused across all subsequent scans, significantly improving performance
 
 #### Step 3 — PII Processing (`process_image_for_pii`)
 
@@ -673,6 +681,34 @@ Centralised settings for all backend modules.
 | `DATABASE_PATH` | `pii_shield.db` | SQLite database path |
 | `TESSERACT_CMD` | Optional | Override path for Tesseract binary |
 
+### 4.14 Context Rules (`context_rules.py`)
+
+A context-aware post-processing layer that runs **after** Presidio's raw entity detections to reduce false positives and boost true positives by examining surrounding text.
+
+#### Rules
+
+| Rule | Purpose |
+|---|---|
+| **Standalone Number Suppression** | Drops bare 10/12-digit numbers that lack PII-context keywords (e.g. "phone", "aadhaar") within ±200 chars. Prevents false positives on transaction IDs, roll numbers, etc. Uses a narrow (±60 char) and wide (±200 char) two-tier window. |
+| **Name + Phone Linkage** | Boosts PHONE_NUMBER confidence when a PERSON entity appears within ±300 chars (common in KYC / contact blocks). |
+| **Name + Aadhaar Linkage** | Boosts IN_AADHAAR confidence when a PERSON entity is detected nearby. |
+| **Credit Card Luhn Validation** | Drops CREDIT_CARD detections that fail the Luhn (ISO/IEC 7812-1) checksum. |
+| **Full-Profile Escalation** | When name + phone + email (or name + Aadhaar) co-occur in a single text block, elevates all related entities to high confidence to avoid partial redaction gaps. |
+
+#### Safeguards
+
+- **50,000-character limit** — text beyond this is truncated before processing
+- **500-row limit** — prevents runaway processing on very large files
+- **60-second timeout** — kills analysis if rules take too long
+
+#### Public API
+
+```python
+apply_context_rules(text: str, entities: List[RecognizerResult]) -> List[RecognizerResult]
+```
+
+Returns a filtered and confidence-boosted entity list.
+
 ---
 
 ## 5. Flask API Server (`app.py`)
@@ -684,6 +720,7 @@ The Flask application exposes REST endpoints and handles CORS for cross-origin r
 | Method | Path | Purpose |
 |---|---|---|
 | `POST` | `/api/scan` | **Primary endpoint** — receives base64 file data, runs the full pipeline, returns sanitised results + sanitised file data-URI |
+| `GET` | `/api/download-sanitized/<doc_id>` | Download the sanitised file in its original format (PDF, DOCX, etc.) by Firestore document ID |
 | `POST` | `/analyze` | Text-only analysis (for textarea input) |
 | `POST` | `/analyze_table` | ASCII table cell-by-cell processing |
 | `POST` | `/upload` | Multipart file upload with SQLite metadata storage |
@@ -839,7 +876,7 @@ Viewer Pages (SanitizedFilesViewer.html, DownloadSanitized.html)
 ┌─────────────────────────▼──────────────────────────────────────┐
 │ STEP 3: TEXT EXTRACTION (ingestion.py)                          │
 │ .pdf → PyMuPDF    .docx → python-docx    .xlsx → pandas        │
-│ .txt/.csv → read   .sql → read    .png/.jpg → Tesseract OCR    │
+│ .txt/.csv → read   .sql → read    .png/.jpg → OCR (Tesseract / EasyOCR) │
 │ → Output: plain text string                                    │
 └─────────────────────────┬──────────────────────────────────────┘
                           │
@@ -1186,8 +1223,9 @@ Hackamined/
     ├── audit_logger.py             SHA-256 hash-chain audit log
     ├── table_processor.py          ASCII table cell-by-cell processing
     ├── sql_handler.py              SQL dump sanitisation
-    ├── ocr_pipeline.py             Tesseract OCR pipeline
+    ├── ocr_pipeline.py             OCR pipeline (Tesseract + EasyOCR fallback)
     ├── file_handlers.py            Format-specific file sanitisation
+    ├── context_rules.py            Context-aware PII post-processing rules
     ├── config.py                   Centralised configuration
     ├── db_schema.sql               Full database schema
     ├── requirements.txt            Python dependencies

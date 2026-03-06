@@ -44,6 +44,17 @@ import os
 
 logger = logging.getLogger(__name__)
 
+# Cached EasyOCR reader (model loading is expensive — only do it once)
+_easyocr_reader = None
+
+def _get_easyocr_reader():
+    global _easyocr_reader
+    if _easyocr_reader is None:
+        import easyocr
+        _easyocr_reader = easyocr.Reader(["en"], gpu=False, verbose=False)
+        logger.info("EasyOCR reader initialised (cached for reuse)")
+    return _easyocr_reader
+
 
 def preprocess_image(filepath: str):
     """
@@ -114,8 +125,7 @@ def extract_text_from_image(filepath: str) -> str:
 
     # Fallback: EasyOCR (pure Python, no system binary needed)
     try:
-        import easyocr
-        reader = easyocr.Reader(["en"], gpu=False, verbose=False)
+        reader = _get_easyocr_reader()
         results = reader.readtext(filepath, detail=0)
         text = "\n".join(results)
         logger.info("OCR (EasyOCR) extracted %d characters from %s", len(text), os.path.basename(filepath))

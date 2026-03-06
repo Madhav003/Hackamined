@@ -2166,5 +2166,45 @@
     "details": "Threat level: MEDIUM (score: 22.05)",
     "prev_hash": "827f80c5c81fc719f1a816d1a89d4145ab16cb7ebcbf7403709ba55d3be3c8ed",
     "entry_hash": "b2130aeef54c0dc7461decabdadf990fa2c29e488a69aa9ef867624f77afcd54"
+  },
+  {
+    "timestamp": "2026-03-06T14:40:12.748162+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: LsZB8C5Qmzjdhw7O3R1P_Screenshot_2026-03-06_173324.png",
+    "prev_hash": "b2130aeef54c0dc7461decabdadf990fa2c29e488a69aa9ef867624f77afcd54",
+    "entry_hash": "e7b3dfc9a06542c7689903b12c4380739ac245bb12538454c1136d2f8f0f59e6"
+  },
+  {
+    "timestamp": "2026-03-06T14:40:16.015731+00:00",
+    "user": "admin",
+    "action": "EXTRACT",
+    "details": "Extracted 295 chars from LsZB8C5Qmzjdhw7O3R1P_Screenshot_2026-03-06_173324.png",
+    "prev_hash": "e7b3dfc9a06542c7689903b12c4380739ac245bb12538454c1136d2f8f0f59e6",
+    "entry_hash": "a8c849d1df24ca574d59bdf407a5af3554d6fe3f094d1559b0f66a5a4dce054d"
+  },
+  {
+    "timestamp": "2026-03-06T14:40:16.787355+00:00",
+    "user": "admin",
+    "action": "ANALYZE",
+    "details": "Detected 9 PII entities in LsZB8C5Qmzjdhw7O3R1P_Screenshot_2026-03-06_173324.png",
+    "prev_hash": "a8c849d1df24ca574d59bdf407a5af3554d6fe3f094d1559b0f66a5a4dce054d",
+    "entry_hash": "7b5f27a24655e1bc4e38a6f1c4e4d4b4595aa630c12d037351898f16b6bd80e5"
+  },
+  {
+    "timestamp": "2026-03-06T14:40:16.818492+00:00",
+    "user": "admin",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for LsZB8C5Qmzjdhw7O3R1P_Screenshot_2026-03-06_173324.png",
+    "prev_hash": "7b5f27a24655e1bc4e38a6f1c4e4d4b4595aa630c12d037351898f16b6bd80e5",
+    "entry_hash": "9b8a0e0a8c8f1864880b16e813e2f616bb93a014581467217769d14e30177608"
+  },
+  {
+    "timestamp": "2026-03-06T14:40:16.827498+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "Threat level: MEDIUM (score: 22.05)",
+    "prev_hash": "9b8a0e0a8c8f1864880b16e813e2f616bb93a014581467217769d14e30177608",
+    "entry_hash": "464f9993a411f44ef4888dd141902d1bf99c6f9a169b30b161601558480d90ba"
   }
 ]

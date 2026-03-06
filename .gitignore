@@ -1,1 +1,20 @@
-serviceAccountKey.json
+# Secrets
+logic/serviceAccountKey.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Database
+*.db
+
+# Sanitized output files
+logic/sanitized_files/
+
+# Audit log (generated at runtime)
+logic/audit_log.json
+
+# Node
+node_modules/

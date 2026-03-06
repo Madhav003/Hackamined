@@ -158,6 +158,7 @@
             const [sidebarOpen, setSidebarOpen] = useState(false);
             const activeMenu = 'Upload Files';
             const fileInputRef = useRef(null);
+            const lastSnapshotRef = useRef('');
             const [userName, setUserName] = useState('Admin User');
 
             const [dragActive, setDragActive] = useState(false);
@@ -214,7 +215,12 @@
                                         scanError: data.scanError || null,
                                     };
                                 });
-                                setQueueFiles(files);
+                                // Only update state if data actually changed (reduces jitter)
+                                const fingerprint = files.map(f => f.id + f.scanStatus + f.entityCount + (f.threatLevel||'')).join('|');
+                                if (fingerprint !== lastSnapshotRef.current) {
+                                    lastSnapshotRef.current = fingerprint;
+                                    setQueueFiles(files);
+                                }
                             }
                         );
                     });
