@@ -21,6 +21,18 @@ pipeline = None  # Lazy initialization
 table_processor = None  # Lazy initialization
 
 
+def is_ascii_table(text: str) -> bool:
+    """Detect if input text is an ASCII pipe-delimited table."""
+    lines = text.strip().split("\n")
+    pipe_lines = [l for l in lines if "|" in l]
+    # At least 3 pipe-delimited lines (header + divider/data + data)
+    if len(pipe_lines) < 3:
+        return False
+    # Check that pipe lines have consistent pipe counts
+    pipe_counts = [l.count("|") for l in pipe_lines]
+    return len(set(pipe_counts)) <= 2  # Allow minor variation
+
+
 def get_pipeline():
     """Lazy-initialize the pipeline (Presidio takes time to load)."""
     global pipeline
@@ -67,6 +79,31 @@ def analyze():
         return jsonify({"error": "No text provided"}), 400
 
     try:
+        # Auto-detect ASCII tables and route to table processor
+        if is_ascii_table(text):
+            sanitized = process_ascii_table(
+                text,
+                twelve_digit_mode="ignore",  # Default: don't redact standalone numbers
+                name_mode="redact",
+                min_score=0.3,
+            )
+            response = {
+                "success": True,
+                "original_length": len(text),
+                "masked_text": sanitized,
+                "entities": [],
+                "entity_count": 0,
+                "threat_level": "TABLE",
+                "risk_score": 0,
+                "entity_breakdown": {},
+                "recommended_actions": [
+                    "Table processed cell-by-cell (alignment preserved)",
+                    "Quasi-identifier column detection applied",
+                ],
+                "audit_valid": True,
+            }
+            return jsonify(response)
+
         p = get_pipeline()
         result = p.process_text(text, "web_input.txt", user)
 

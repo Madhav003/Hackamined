@@ -17,6 +17,7 @@ DESIGN RATIONALE (for hackathon judges):
 =============================================================================
 """
 
+from typing import Optional
 from presidio_analyzer import Pattern, PatternRecognizer, RecognizerResult
 import re
 
@@ -105,13 +106,13 @@ class IndianAadhaarRecognizer(PatternRecognizer):
             "AADHAAR_SPACED",
             # 4-4-4 digit groups separated by spaces: "2345 6789 0123"
             r"\b[2-9]\d{3}\s\d{4}\s\d{4}\b",
-            0.6,  # Base confidence (boosted by context words)
+            0.35,  # Requires context boost (+0.35) to reach 0.4 threshold
         ),
         Pattern(
             "AADHAAR_CONTINUOUS",
             # 12 continuous digits starting with 2-9
             r"\b[2-9]\d{11}\b",
-            0.4,  # Lower base confidence — needs context to confirm
+            0.15,  # Very low base — requires context words like "aadhaar" nearby
         ),
     ]
 
@@ -227,3 +228,80 @@ class IndianPanRecognizer(PatternRecognizer):
             return False
 
         return True
+
+
+# ---------------------------------------------------------------------------
+# Indian Name Recognizer (Fallback for spaCy NER misses)
+# ---------------------------------------------------------------------------
+
+class IndianNameRecognizer(PatternRecognizer):
+    """
+    Fallback recognizer for Indian names that spaCy NER may miss.
+    Uses a curated list of common Indian first/last names to boost recall.
+    """
+
+    INDIAN_FIRST_NAMES = {
+        "aarav", "aditi", "akash", "amit", "ananya", "anil", "anita", "anjali",
+        "arjun", "arun", "deepak", "deepika", "dev", "diya", "gaurav", "geeta",
+        "harsh", "ishaan", "ishita", "jai", "karan", "kavya", "krishna", "lakshmi",
+        "manish", "maya", "meera", "mohan", "mukesh", "nandini", "naveen", "neha",
+        "nikhil", "nisha", "pankaj", "pooja", "priya", "priyanka", "rahul", "raj",
+        "rajesh", "rakesh", "ram", "ravi", "rekha", "ritu", "rohan", "rohit",
+        "sakshi", "sandeep", "sanjay", "sara", "sarita", "shikha", "shiva", "shreya",
+        "simran", "sneha", "sonia", "sudha", "sunil", "sunita", "suresh", "swati",
+        "tanvi", "tara", "uma", "varun", "vijay", "vikram", "vinod", "vivek", "yash",
+    }
+
+    INDIAN_LAST_NAMES = {
+        "agarwal", "arora", "banerjee", "bhat", "bhatt", "chakraborty", "chand",
+        "chandra", "chatterjee", "chauhan", "chopra", "das", "desai", "devi",
+        "dutta", "gandhi", "ghosh", "goyal", "gupta", "iyer", "jain", "joshi",
+        "kaur", "khan", "khanna", "kohli", "krishnamurthy", "kumar", "lal",
+        "mahajan", "malik", "mehta", "menon", "mishra", "mukherjee", "nair",
+        "nanda", "kapoor", "pandey", "patel", "prasad", "rao", "rastogi", "reddy",
+        "roy", "sachdev", "sahni", "saxena", "sen", "sethi", "shah", "sharma",
+        "shukla", "singh", "sinha", "srivastava", "subramanian", "tiwari",
+        "trivedi", "varma", "verma", "yadav",
+    }
+
+    CONTEXT_WORDS = [
+        "name", "customer", "client", "person", "employee", "contact",
+        "applicant", "beneficiary", "holder", "owner", "mr", "mrs", "ms",
+        "shri", "smt", "kumar", "kumari",
+    ]
+
+    def __init__(self):
+        patterns = [
+            Pattern(
+                "INDIAN_NAME_PATTERN",
+                r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b",
+                0.4,
+            ),
+        ]
+        super().__init__(
+            supported_entity="PERSON",
+            patterns=patterns,
+            context=self.CONTEXT_WORDS,
+            supported_language="en",
+            name="Indian Name Recognizer (Fallback)",
+        )
+
+    def validate_result(self, pattern_text: str) -> Optional[bool]:
+        """Validate matched text looks like an Indian name."""
+        words = pattern_text.lower().split()
+        if len(words) < 2:
+            return False
+
+        first_word = words[0]
+        last_word = words[-1]
+        is_known_first = first_word in self.INDIAN_FIRST_NAMES
+        is_known_last = last_word in self.INDIAN_LAST_NAMES
+
+        if is_known_first or is_known_last:
+            return True
+
+        # Accept Title Case 2-3 word sequences as possible names
+        if all(w[0].isupper() and w[1:].islower() for w in pattern_text.split() if len(w) > 1):
+            return None  # Let default scoring decide
+
+        return False

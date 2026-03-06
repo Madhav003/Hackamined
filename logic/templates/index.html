@@ -527,6 +527,12 @@ Note: This ASCII table demonstrates:
         
         let isTableMode = false;
         
+        function isAsciiTable(text) {
+            const lines = text.trim().split('\\n');
+            const pipeLines = lines.filter(l => l.includes('|'));
+            return pipeLines.length >= 3;
+        }
+        
         function loadSample(type) {
             document.getElementById('inputText').value = samples[type];
             
@@ -553,6 +559,14 @@ Note: This ASCII table demonstrates:
             const outputBox = document.getElementById('outputBox');
             const resultsPanel = document.getElementById('resultsPanel');
             
+            // Auto-detect ASCII tables if not already in table mode
+            const detectedTable = !isTableMode && isAsciiTable(text);
+            const useTableMode = isTableMode || detectedTable;
+            
+            if (detectedTable) {
+                document.getElementById('tableModeOptions').classList.remove('hidden');
+            }
+            
             btn.disabled = true;
             btn.innerHTML = '⏳ Analyzing...';
             loading.classList.add('active');
@@ -562,7 +576,7 @@ Note: This ASCII table demonstrates:
             try {
                 let response;
                 
-                if (isTableMode) {
+                if (useTableMode) {
                     // Use table-specific endpoint with options
                     const twelveDigitMode = document.getElementById('twelveDigitMode').value;
                     const nameMode = document.getElementById('nameMode').value;

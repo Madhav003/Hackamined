@@ -14,7 +14,7 @@ from presidio_analyzer import AnalyzerEngine, RecognizerRegistry, RecognizerResu
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
 
-from recognizers import IndianAadhaarRecognizer, IndianPanRecognizer
+from recognizers import IndianAadhaarRecognizer, IndianPanRecognizer, IndianNameRecognizer
 from config import ENTITY_TYPES, MIN_CONFIDENCE_SCORE
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ def create_analyzer() -> AnalyzerEngine:
     # Register custom Indian PII recognizers
     registry.add_recognizer(IndianAadhaarRecognizer())
     registry.add_recognizer(IndianPanRecognizer())
+    registry.add_recognizer(IndianNameRecognizer())
 
     analyzer = AnalyzerEngine(registry=registry)
     logger.info("AnalyzerEngine initialized with %d recognizers", len(registry.recognizers))

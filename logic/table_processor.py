@@ -29,106 +29,14 @@ from presidio_analyzer import (
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
 
+from recognizers import IndianNameRecognizer
+
 logger = logging.getLogger(__name__)
 
 
 # ===========================================================================
-# BUG 1 FIX: Custom Indian Name Recognizer (Fallback for NER misses)
+# BUG 1 FIX: IndianNameRecognizer now imported from recognizers.py
 # ===========================================================================
-
-class IndianNameRecognizer(PatternRecognizer):
-    """
-    Fallback recognizer for Indian names that spaCy NER may miss.
-    
-    Strategy:
-      1. Pattern-based detection of common Indian name patterns
-      2. Title-case word sequences (2-4 words) near context words
-      3. High recall, moderate precision — better to over-detect
-    
-    This supplements (not replaces) the built-in SpacyRecognizer.
-    """
-
-    # Common Indian first names (partial list for pattern matching)
-    INDIAN_FIRST_NAMES = {
-        "aarav", "aditi", "akash", "amit", "ananya", "anil", "anita", "anjali",
-        "arjun", "arun", "deepak", "deepika", "dev", "diya", "gaurav", "geeta",
-        "harsh", "ishaan", "ishita", "jai", "karan", "kavya", "krishna", "lakshmi",
-        "manish", "maya", "meera", "mohan", "mukesh", "nandini", "naveen", "neha",
-        "nikhil", "nisha", "pankaj", "pooja", "priya", "priyanka", "rahul", "raj",
-        "rajesh", "rakesh", "ram", "ravi", "rekha", "ritu", "rohan", "rohit",
-        "sakshi", "sandeep", "sanjay", "sara", "sarita", "shikha", "shiva", "shreya",
-        "simran", "sneha", "sonia", "sudha", "sunil", "sunita", "suresh", "swati",
-        "tanvi", "tara", "uma", "varun", "vijay", "vikram", "vinod", "vivek", "yash",
-    }
-
-    # Common Indian last names
-    INDIAN_LAST_NAMES = {
-        "agarwal", "arora", "banerjee", "bhat", "bhatt", "chakraborty", "chand",
-        "chandra", "chatterjee", "chauhan", "chopra", "das", "desai", "devi",
-        "dutta", "gandhi", "ghosh", "goyal", "gupta", "iyer", "jain", "joshi",
-        "kaur", "khan", "khanna", "kohli", "krishnamurthy", "kumar", "lal",
-        "mahajan", "malik", "mehta", "menon", "mishra", "mukherjee", "nair",
-        "nanda", "kapoor", "pandey", "patel", "prasad", "rao", "rastogi", "reddy",
-        "roy", "sachdev", "sahni", "saxena", "sen", "sethi", "shah", "sharma",
-        "shukla", "singh", "sinha", "srivastava", "subramanian", "tiwari",
-        "trivedi", "varma", "verma", "yadav",
-    }
-
-    CONTEXT_WORDS = [
-        "name", "customer", "client", "person", "employee", "contact",
-        "applicant", "beneficiary", "holder", "owner", "mr", "mrs", "ms",
-        "shri", "smt", "kumar", "kumari",
-    ]
-
-    def __init__(self):
-        # Build regex pattern for "Firstname Lastname" combinations
-        # Match 2-4 capitalized words (typical Indian full names)
-        patterns = [
-            Pattern(
-                "INDIAN_NAME_PATTERN",
-                r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b",
-                0.4,  # Lower base score — validation boosts it
-            ),
-        ]
-
-        super().__init__(
-            supported_entity="PERSON",
-            patterns=patterns,
-            context=self.CONTEXT_WORDS,
-            supported_language="en",
-            name="Indian Name Recognizer (Fallback)",
-        )
-
-    def validate_result(self, pattern_text: str) -> Optional[bool]:
-        """
-        Validate that matched text looks like an Indian name.
-        Returns True to keep, False to reject, None for default behavior.
-        """
-        words = pattern_text.lower().split()
-        
-        if len(words) < 2:
-            return False
-
-        # Check if any word matches known Indian names
-        first_word = words[0]
-        last_word = words[-1]
-
-        is_known_first = first_word in self.INDIAN_FIRST_NAMES
-        is_known_last = last_word in self.INDIAN_LAST_NAMES
-
-        # High confidence if both first and last name match
-        if is_known_first and is_known_last:
-            return True
-
-        # Medium confidence if either matches
-        if is_known_first or is_known_last:
-            return True
-
-        # Still accept if it's Title Case and 2-3 words (likely a name)
-        if all(w[0].isupper() and w[1:].islower() for w in pattern_text.split()):
-            return None  # Let default scoring decide
-
-        return False
 
 
 # ===========================================================================
@@ -360,8 +268,28 @@ class AsciiTableProcessor:
       - Mixed formats
     """
 
-    # Regex to detect table divider lines
-    DIVIDER_PATTERN = re.compile(r"^[\s]*[+\-|=]+[\s]*$")
+    # Regex to detect table divider lines (e.g. +---+---+ or | --- | --- |)
+    DIVIDER_PATTERN = re.compile(r"^[\s]*[+\-|=\s]+[\s]*$")
+
+    # Additional check: divider must have at least one dash or equals sign
+
+    # Quasi-identifier column classification keywords
+    PII_COLUMN_KEYWORDS = {
+        "aadhaar": "IN_AADHAAR", "aadhar": "IN_AADHAAR", "uid": "IN_AADHAAR",
+        "pan": "IN_PAN",
+        "ssn": "US_SSN",
+        "name": "PERSON",
+        "email": "EMAIL_ADDRESS", "e-mail": "EMAIL_ADDRESS",
+        "phone": "PHONE_NUMBER", "mobile": "PHONE_NUMBER", "contact number": "PHONE_NUMBER",
+        "credit card": "CREDIT_CARD",
+        "address": "LOCATION",
+        "dob": "DATE_TIME", "date of birth": "DATE_TIME", "birth": "DATE_TIME",
+    }
+    # Generic column headers that indicate a non-PII numeric/ID column
+    NON_PII_INDICATORS = [
+        "number", "digit", "id", "code", "serial",
+        "roll", "reference", "transaction", "order", "account",
+    ]
     
     def __init__(
         self,
@@ -375,13 +303,41 @@ class AsciiTableProcessor:
         self.operators = operators
         self.min_score = min_score
 
+    def classify_column(self, header: str) -> dict:
+        """
+        Classify a column as PII or non-PII based on its header text.
+
+        Implements quasi-identifier logic: a 12-digit number column is NOT PII
+        by itself, but an 'Aadhaar Number' column IS because the header provides
+        the identifying context.
+
+        Returns dict with keys: is_pii, entity_type, context
+        """
+        header_lower = header.lower().strip()
+
+        # Check PII keywords first (higher priority)
+        for keyword, entity_type in self.PII_COLUMN_KEYWORDS.items():
+            if keyword in header_lower:
+                return {"is_pii": True, "entity_type": entity_type, "context": keyword}
+
+        # Check generic non-PII indicators
+        for indicator in self.NON_PII_INDICATORS:
+            if indicator in header_lower:
+                return {"is_pii": False, "entity_type": None, "context": None}
+
+        # Default: treat as potentially PII (safe default)
+        return {"is_pii": True, "entity_type": None, "context": None}
+
     def is_divider_line(self, line: str) -> bool:
-        """Check if a line is a table divider (e.g., +----+----+)."""
+        """Check if a line is a table divider (e.g., +----+----+ or | --- | --- |)."""
         stripped = line.strip()
         if not stripped:
             return False
-        # Divider lines contain only +, -, |, =, and spaces
-        return bool(self.DIVIDER_PATTERN.match(stripped))
+        # Must contain at least one dash or equals (not just pipes/spaces)
+        if not re.search(r"[-=]", stripped):
+            return False
+        # Must NOT contain any alphanumeric characters
+        return not re.search(r"[a-zA-Z0-9]", stripped)
 
     def parse_row(self, line: str) -> list[str]:
         """
@@ -436,27 +392,62 @@ class AsciiTableProcessor:
 
         return widths
 
-    def sanitize_cell(self, value: str) -> str:
+    def sanitize_cell(self, value: str, column_info: dict = None) -> str:
         """
         Run Presidio analysis and anonymization on a single cell value.
+
+        If column_info indicates a non-PII column, skip detection entirely.
+        If column_info provides PII context (e.g. 'aadhaar'), prepend it so
+        context-dependent recognizers activate.
         """
         if not value.strip():
             return value
 
+        # Skip non-PII columns entirely (quasi-identifier logic)
+        if column_info and not column_info.get("is_pii", True):
+            return value
+
+        # If column has specific PII context, prepend it for recognizer boost
+        if column_info and column_info.get("context"):
+            context_prefix = column_info["context"]
+            analysis_text = f"{context_prefix} {value}"
+            offset = len(context_prefix) + 1
+        else:
+            analysis_text = value
+            offset = 0
+
         # Analyze
         results = analyze_with_deduplication(
             self.analyzer,
-            value,
+            analysis_text,
             min_score=self.min_score,
         )
 
         if not results:
             return value
 
+        # Adjust result positions back to the original cell value
+        adjusted_results = []
+        for r in results:
+            # Clamp span to value portion (handles detections that overlap prefix)
+            adj_start = max(r.start, offset) - offset
+            adj_end = min(r.end, offset + len(value)) - offset
+            if adj_start < adj_end:
+                adjusted = RecognizerResult(
+                    entity_type=r.entity_type,
+                    start=adj_start,
+                    end=adj_end,
+                    score=r.score,
+                )
+                adjusted_results.append(adjusted)
+
+        if not adjusted_results:
+            return value
+
         # Anonymize
         anonymized = self.anonymizer.anonymize(
             text=value,
-            analyzer_results=results,
+            analyzer_results=adjusted_results,
             operators=self.operators,
         )
 
@@ -486,12 +477,10 @@ class AsciiTableProcessor:
     def process_table(self, table_text: str) -> str:
         """
         Process an entire ASCII table, preserving alignment.
-        
-        Args:
-            table_text: The full ASCII table as a string
-        
-        Returns:
-            Sanitized table with PII redacted and alignment preserved
+
+        Implements quasi-identifier column detection: columns whose headers
+        don't indicate PII (e.g. '12-Digit Number') are left untouched,
+        while columns like 'Name' or 'Aadhaar Number' are sanitized.
         """
         lines = table_text.split("\n")
         
@@ -503,8 +492,20 @@ class AsciiTableProcessor:
             logger.warning("Could not detect table structure, processing line-by-line")
             return self._process_line_by_line(lines)
 
+        # --- Detect header row and classify columns ---
+        headers = []
+        column_infos = []
+        for line in lines:
+            if self.is_divider_line(line) or "|" not in line:
+                continue
+            # First non-divider pipe-delimited line is the header
+            headers = self.parse_row(line)
+            column_infos = [self.classify_column(h) for h in headers]
+            break
+
         result_lines = []
-        
+        header_seen = False
+
         for line in lines:
             if self.is_divider_line(line):
                 # Keep divider lines unchanged
@@ -517,13 +518,21 @@ class AsciiTableProcessor:
                 result_lines.append(sanitized)
                 continue
 
+            # Skip the header row itself (don't sanitize column names)
+            if not header_seen:
+                header_seen = True
+                result_lines.append(line)
+                continue
+
             # Parse cells
             cells = self.parse_row(line)
             sanitized_cells = []
 
             for i, cell in enumerate(cells):
-                # Sanitize cell value
-                sanitized = self.sanitize_cell(cell)
+                # Get column info if available
+                col_info = column_infos[i] if i < len(column_infos) else None
+                # Sanitize cell value with column awareness
+                sanitized = self.sanitize_cell(cell, column_info=col_info)
                 
                 # Pad to original column width
                 width = col_widths[i] if i < len(col_widths) else len(cell) + 2
