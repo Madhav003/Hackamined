@@ -40,11 +40,14 @@ def parse_insert_statements(sql_content: str) -> List[dict]:
     # Regex to match INSERT INTO statements
     # Handles: INSERT INTO table_name VALUES (...);
     # Also:    INSERT INTO table_name (col1, col2) VALUES (...);
+    # The value tuple pattern is quote-aware: ')' inside single-quoted
+    # strings does not terminate the tuple match.
+    _val_tuple = r"\((?:[^)'\\]|'(?:[^'\\]|\\.)*'|\\.)*\)"
     pattern = re.compile(
         r"(INSERT\s+INTO\s+[`\"']?(\w+)[`\"']?\s*"  # INSERT INTO table_name
         r"(?:\([^)]*\)\s*)?"                          # Optional column list
         r"VALUES\s*"                                   # VALUES keyword
-        r"((?:\([^)]*\)\s*,?\s*)+))"                  # One or more value tuples
+        r"((?:" + _val_tuple + r"\s*,?\s*)+))"        # One or more value tuples
         r"\s*;",                                       # Terminating semicolon
         re.IGNORECASE | re.DOTALL,
     )

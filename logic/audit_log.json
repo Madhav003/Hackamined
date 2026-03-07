@@ -19246,5 +19246,69 @@
     "details": "Threat level: MEDIUM (score: 16.25)",
     "prev_hash": "f8837d9931baaba899280f0e87c23fb5457a177ad1044e2b334add2b9d107fd8",
     "entry_hash": "98b038e03287780ae9b209d0fb05c1ffa82f038962fdac4672b0b951cb6d074b"
+  },
+  {
+    "timestamp": "2026-03-07T07:49:06.425185+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: FTHPiFWHcVsKEW42L4LV_operational_archive_dump.sql",
+    "prev_hash": "98b038e03287780ae9b209d0fb05c1ffa82f038962fdac4672b0b951cb6d074b",
+    "entry_hash": "f4a573f4345f98765f7d22bf1dc397200422553020f8ead2e5b96cbd4d7b3be8"
+  },
+  {
+    "timestamp": "2026-03-07T07:49:20.601911+00:00",
+    "user": "admin",
+    "action": "SQL_SANITIZE",
+    "details": "Sanitized SQL dump: FTHPiFWHcVsKEW42L4LV_operational_archive_dump.sql \u2192 FTHPiFWHcVsKEW42L4LV_operational_archive_dump_sanitized.sql",
+    "prev_hash": "f4a573f4345f98765f7d22bf1dc397200422553020f8ead2e5b96cbd4d7b3be8",
+    "entry_hash": "3bed5be9984cae2375e57530fb525a54bb2d53cb7a65a768a47955d4e12c5afa"
+  },
+  {
+    "timestamp": "2026-03-07T07:49:20.673262+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "SQL threat level: CRITICAL",
+    "prev_hash": "3bed5be9984cae2375e57530fb525a54bb2d53cb7a65a768a47955d4e12c5afa",
+    "entry_hash": "8e2447747db7d05d6039c1cb42f0708d089c2d341ace24822de73444aace7409"
+  },
+  {
+    "timestamp": "2026-03-07T07:50:56.844306+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: X8BaZRZKFko0c7i7D1mB_hackmind.docx",
+    "prev_hash": "8e2447747db7d05d6039c1cb42f0708d089c2d341ace24822de73444aace7409",
+    "entry_hash": "bd4627a1b46783e78c9ef9946ac48e1d93311bf666e4bc22c0e38f1cbdbeba37"
+  },
+  {
+    "timestamp": "2026-03-07T07:50:56.962501+00:00",
+    "user": "admin",
+    "action": "EXTRACT",
+    "details": "Extracted 437 chars from X8BaZRZKFko0c7i7D1mB_hackmind.docx",
+    "prev_hash": "bd4627a1b46783e78c9ef9946ac48e1d93311bf666e4bc22c0e38f1cbdbeba37",
+    "entry_hash": "7c131769973fedc9d452ee97d05ab63d4a35bd689cb517c24d9b80f59e78071a"
+  },
+  {
+    "timestamp": "2026-03-07T07:50:57.141481+00:00",
+    "user": "admin",
+    "action": "ANALYZE",
+    "details": "Detected 11 PII entities in X8BaZRZKFko0c7i7D1mB_hackmind.docx",
+    "prev_hash": "7c131769973fedc9d452ee97d05ab63d4a35bd689cb517c24d9b80f59e78071a",
+    "entry_hash": "2a1a805340612141c2405d5760e9df5157b895958ea30157f3a69346f62cab76"
+  },
+  {
+    "timestamp": "2026-03-07T07:50:57.203057+00:00",
+    "user": "admin",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for X8BaZRZKFko0c7i7D1mB_hackmind.docx",
+    "prev_hash": "2a1a805340612141c2405d5760e9df5157b895958ea30157f3a69346f62cab76",
+    "entry_hash": "788b7f9cf14e7f534c335821423d777608ef640dfaf05e116c6c319f9428cfb8"
+  },
+  {
+    "timestamp": "2026-03-07T07:50:57.245076+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "Threat level: MEDIUM (score: 29.5)",
+    "prev_hash": "788b7f9cf14e7f534c335821423d777608ef640dfaf05e116c6c319f9428cfb8",
+    "entry_hash": "ca800fd0e9c0922b8092c4633d48f21e136ba6ee48337043c1b11d0e1b35582e"
   }
 ]
