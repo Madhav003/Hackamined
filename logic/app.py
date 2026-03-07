@@ -15,6 +15,7 @@ Then open: http://localhost:5000
 import base64
 import hashlib
 import json
+import mimetypes
 import os
 import sqlite3
 import tempfile
@@ -48,6 +49,7 @@ table_processor = None  # Lazy initialization
 
 SANITIZED_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sanitized_files")
 os.makedirs(SANITIZED_DIR, exist_ok=True)
+print(f"[STARTUP] SANITIZED_DIR resolved to: {os.path.abspath(SANITIZED_DIR)}")
 
 TEMP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp")
 os.makedirs(TEMP_DIR, exist_ok=True)
@@ -422,9 +424,13 @@ def download_sanitized_file(doc_id):
     Download the sanitized file in its original format (PDF, DOCX, etc.).
     Looks up the sanitizedFilePath from Firestore or the in-memory cache,
     then serves the file from sanitized_files/.
+    For images: if the sanitized file is missing, re-downloads the original
+    from Firebase Storage and re-runs redaction on-the-fly.
     """
     # Try in-memory cache first
     san_filename = None
+    original_file_url = None
+    original_file_name = None
     with _scan_results_lock:
         entry = _scan_results.get(doc_id)
         if entry:
@@ -433,40 +439,103 @@ def download_sanitized_file(doc_id):
                 san_filename = os.path.basename(sp)
 
     # Try Firestore if not in cache
-    if not san_filename and _firestore_client:
+    firestore_data = None
+    if _firestore_client:
         try:
             doc_ref = _firestore_client.collection("files").document(doc_id).get()
             if doc_ref.exists:
-                san_filename = doc_ref.to_dict().get("sanitizedFilePath", "")
+                firestore_data = doc_ref.to_dict()
+                if not san_filename:
+                    san_filename = firestore_data.get("sanitizedFilePath", "")
+                original_file_url = firestore_data.get("originalFileURL", "")
+                original_file_name = firestore_data.get("fileName", "")
         except Exception:
             pass
+
+    # If san_filename is empty, try to find any file in sanitized_files/ by doc_id
+    if not san_filename:
+        try:
+            for fname in os.listdir(SANITIZED_DIR):
+                if fname.startswith(doc_id):
+                    san_filename = fname
+                    break
+        except Exception:
+            pass
+
+    # If still no filename, try to construct one and regenerate for images
+    if not san_filename and original_file_name:
+        img_ext = os.path.splitext(original_file_name)[1].lower()
+        if img_ext in (".png", ".jpg", ".jpeg") and original_file_url:
+            try:
+                resp = http_requests.get(original_file_url, timeout=30)
+                resp.raise_for_status()
+                tmp_img_path = os.path.join(TEMP_DIR, f"{doc_id}_redownload{img_ext}")
+                with open(tmp_img_path, "wb") as f:
+                    f.write(resp.content)
+                # Try redaction
+                try:
+                    from ocr_pipeline import redact_image_pii
+                    san_filename = f"{doc_id}_sanitized{img_ext}"
+                    san_path_regen = os.path.join(SANITIZED_DIR, san_filename)
+                    redact_image_pii(tmp_img_path, san_path_regen, get_pipeline().analyzer)
+                    print(f"[DOWNLOAD] Regenerated redacted image: {san_path_regen}")
+                except Exception:
+                    # Fallback: copy original
+                    import shutil
+                    san_filename = f"{doc_id}_sanitized{img_ext}"
+                    san_path_regen = os.path.join(SANITIZED_DIR, san_filename)
+                    shutil.copy2(tmp_img_path, san_path_regen)
+                    print(f"[DOWNLOAD] Copied original as fallback: {san_path_regen}")
+                # Update Firestore with the new sanitizedFilePath
+                if _firestore_client and san_filename:
+                    try:
+                        _firestore_client.collection("files").document(doc_id).update({
+                            "sanitizedFilePath": san_filename
+                        })
+                    except Exception:
+                        pass
+                # Clean up temp
+                try:
+                    os.remove(tmp_img_path)
+                except Exception:
+                    pass
+            except Exception as regen_err:
+                print(f"[DOWNLOAD] Image regeneration failed: {regen_err}")
 
     if not san_filename:
         return jsonify({"error": "Sanitized file not found"}), 404
 
     san_path = os.path.join(SANITIZED_DIR, san_filename)
+
     if not os.path.exists(san_path):
         return jsonify({"error": "Sanitized file missing from server"}), 404
 
     # Determine a user-friendly download name from the original filename
-    original_name = san_filename
-    # Try to get original name from Firestore
-    if _firestore_client:
-        try:
-            doc_ref = _firestore_client.collection("files").document(doc_id).get()
-            if doc_ref.exists:
-                original_name = doc_ref.to_dict().get("fileName", san_filename)
-        except Exception:
-            pass
+    original_name = original_file_name or san_filename
+    if not original_name or original_name == san_filename:
+        if _firestore_client and not firestore_data:
+            try:
+                doc_ref = _firestore_client.collection("files").document(doc_id).get()
+                if doc_ref.exists:
+                    original_name = doc_ref.to_dict().get("fileName", san_filename)
+            except Exception:
+                pass
 
     name, orig_ext = os.path.splitext(original_name)
     san_ext = os.path.splitext(san_filename)[1]
     download_name = f"{name}_sanitized{san_ext or orig_ext}"
 
+    # If ?inline=1 is set, serve the file for inline display (e.g. <img src>)
+    inline = request.args.get("inline", "0") == "1"
+
+    # Explicit MIME type for reliable browser handling (especially images)
+    mime_type = mimetypes.guess_type(san_path)[0] or 'application/octet-stream'
+
     return send_file(
         san_path,
-        as_attachment=True,
+        as_attachment=not inline,
         download_name=download_name,
+        mimetype=mime_type,
     )
 
 
@@ -723,7 +792,7 @@ def _background_scan(file_url, file_name, doc_id, ext, local_path=None):
             try:
                 from PIL import Image as PILImage
                 pil_img = PILImage.open(tmp_path)
-                max_dim = 2000
+                max_dim = 1200  # Reduced from 2000 for faster OCR + redaction
                 if max(pil_img.size) > max_dim:
                     ratio = max_dim / max(pil_img.size)
                     new_size = (int(pil_img.size[0] * ratio), int(pil_img.size[1] * ratio))
@@ -735,22 +804,28 @@ def _background_scan(file_url, file_name, doc_id, ext, local_path=None):
             except Exception as resize_err:
                 print(f"[SCAN] Image resize skipped: {resize_err}")
 
-            # Visual redaction with presidio-image-redactor
-            sanitized_path = None
+            # New image redaction using pytesseract + Presidio bounding boxes
+            img_out_name = f"{doc_id}_sanitized{ext}"
+            sanitized_path = os.path.join(SANITIZED_DIR, img_out_name)
             try:
-                from PIL import Image as PILImage
-                from presidio_image_redactor import ImageRedactorEngine
-                img_engine = ImageRedactorEngine()
-                pil_img = PILImage.open(tmp_path)
-                redacted_img = img_engine.redact(pil_img, fill=(0, 0, 0))
-                img_out_name = f"{doc_id}_sanitized{ext}"
-                sanitized_path = os.path.join(SANITIZED_DIR, img_out_name)
-                redacted_img.save(sanitized_path)
-                print(f"[SCAN] Image redacted: {sanitized_path}")
-            except ImportError:
-                print("[SCAN] presidio-image-redactor not installed — skipping image redaction")
+                from ocr_pipeline import redact_image_pii
+                redact_image_pii(tmp_path, sanitized_path, get_pipeline().analyzer)
+                print(f"[SCAN] Image redacted and saved: {sanitized_path}")
             except Exception as img_err:
-                print(f"[SCAN] Image redaction error: {img_err}")
+                print(f"[SCAN] Image redaction failed: {img_err}")
+                import shutil
+                shutil.copy2(tmp_path, sanitized_path)
+                print(f"[SCAN] Copied original as fallback: {sanitized_path}")
+
+            # Always write sanitizedFilePath to Firestore after image processing
+            if _firestore_client and os.path.exists(sanitized_path):
+                try:
+                    _firestore_client.collection("files").document(doc_id).update({
+                        "sanitizedFilePath": img_out_name
+                    })
+                    print(f"[SCAN] Firestore updated with sanitizedFilePath: {img_out_name}")
+                except Exception as fs_err:
+                    print(f"[SCAN] Firestore update failed: {fs_err}")
             _check_timeout("image-redact")
 
             # OCR text extraction (once only)

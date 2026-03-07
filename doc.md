@@ -24,6 +24,7 @@
    - [File Handlers (file_handlers.py)](#412-file-handlers-file_handlerspy)
    - [Configuration (config.py)](#413-configuration-configpy)
    - [Context Rules (context_rules.py)](#414-context-rules-context_rulespy)
+   - [Audio Handler (audio_handler.py)](#415-audio-handler-audio_handlerpy)
 5. [Flask API Server (app.py)](#5-flask-api-server-apppy)
 6. [Frontend — React/Tailwind UI](#6-frontend--reacttailwind-ui)
 7. [Frontend–Backend Integration](#7-frontendbackend-integration)
@@ -46,7 +47,7 @@
 
 | Capability | Description |
 |---|---|
-| **Multi-format scanning** | Processes `.txt`, `.csv`, `.pdf`, `.docx`, `.xlsx`, `.sql`, `.png`, `.jpg` |
+| **Multi-format scanning** | Processes `.txt`, `.csv`, `.pdf`, `.docx`, `.xlsx`, `.sql`, `.png`, `.jpg`, `.mp3`, `.wav` |
 | **PII detection** | Identifies names, emails, phone numbers, Aadhaar, PAN, credit cards, SSNs, IPs, dates, URLs |
 | **Dual-state storage** | Produces a **masked view** (safe for analysts) and an **encrypted raw** (recoverable by admins) |
 | **Threat assessment** | Scores documents by risk (LOW / MEDIUM / HIGH / CRITICAL) based on entity types and confidence |
@@ -89,7 +90,8 @@
 │     │     ├── threat_intel.py ── Risk scoring                │
 │     │     ├── audit_logger.py ── Hash-chain audit log        │
 │     │     ├── sql_handler.py ─── SQL dump sanitisation       │
-│     │     └── ocr_pipeline.py ── Tesseract OCR               │
+│     │     ├── ocr_pipeline.py ── Tesseract OCR + image redact │
+│     │     └── audio_handler.py ─ Whisper transcription + beep │
 │     │                                                        │
 │     ├── table_processor.py ── Cell-by-cell table processing  │
 │     ├── file_handlers.py ──── Format-specific sanitised file │
@@ -103,7 +105,7 @@
 │   Cloud Firestore ── users, files (frontend state)           │
 │   SQLite ──────────── documents, pii_records, threat_reports │
 │   audit_log.json ──── Hash-chained audit entries             │
-│   sanitized_files/ ── Output files (PDF, DOCX, XLSX, TXT)   │
+│   sanitized_files/ ── Output files (PDF, DOCX, XLSX, TXT, images, audio) │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -127,7 +129,11 @@
 | **pytesseract** | ≥ 0.3.10 | Python binding for Tesseract OCR |
 | **easyocr** | ≥ 1.7.0 | Pure-Python OCR fallback (PyTorch-based, no system binary needed) |
 | **opencv-python-headless** | ≥ 4.9.0 | Image preprocessing for OCR |
-| **Pillow** | ≥ 10.0.0 | Image I/O support |
+| **Pillow** | ≥ 10.0.0 | Image I/O, drawing redaction boxes via `ImageDraw` |
+| **openai-whisper** | ≥ 20230314 | Speech-to-text transcription (word-level timestamps) |
+| **pydub** | ≥ 0.25.1 | Audio segment manipulation (beep overlay for PII) |
+| **imageio-ffmpeg** | ≥ 0.5.1 | Bundled FFmpeg binary for audio decoding |
+| **SpeechRecognition** | ≥ 3.10.0 | Audio recognition utilities |
 | **pytest** | ≥ 8.0.0 | Unit testing |
 | **spaCy** | (Presidio dep) | NER for person/location detection |
 | **SQLite** | (stdlib) | Local relational database |
@@ -157,7 +163,9 @@
 | **Tesseract LSTM** | ocr_pipeline.py | Optical Character Recognition (primary) |
 | **EasyOCR (CRAFT + CRNN)** | ocr_pipeline.py | OCR fallback when Tesseract is unavailable |
 | **Adaptive Gaussian thresholding** | ocr_pipeline.py | Image binarisation for OCR preprocessing |
-| **Bilateral filter** | ocr_pipeline.py | Edge-preserving noise removal |
+| **Gaussian blur** | ocr_pipeline.py | Fast noise removal for OCR preprocessing |
+| **pytesseract bounding-box redaction** | ocr_pipeline.py | Word-level bbox extraction + black rectangle overlay for image PII redaction |
+| **Whisper word-timestamp beeping** | audio_handler.py | Transcribe → detect PII → overlay 1 kHz beep on PII word segments |
 | **Weighted risk scoring** | threat_intel.py | Entity-weight × confidence threat calculation |
 
 ---
@@ -594,13 +602,13 @@ All DDL statements (`CREATE`, `ALTER`, `DROP`) are left untouched.
 
 ### 4.11 OCR Pipeline (`ocr_pipeline.py`)
 
-Extracts text from images using OCR with computer vision preprocessing. Supports two OCR backends with automatic fallback.
+Extracts text from images using OCR with computer vision preprocessing and performs visual PII redaction by drawing black bounding boxes over detected PII words. Supports two OCR backends with automatic fallback.
 
 #### Step 1 — Image Preprocessing (`preprocess_image`)
 
 1. Load image with OpenCV
 2. Convert BGR → Grayscale
-3. **Bilateral filter** — removes noise while preserving edges (important for text clarity)
+3. **Gaussian blur** (3×3 kernel) — fast noise removal (replaced bilateral filter for speed)
 4. **Adaptive Gaussian threshold** — binarises the image, handling uneven lighting across the page
 
 #### Step 2 — Text Extraction (`extract_text_from_image`)
@@ -609,7 +617,7 @@ Uses a dual-engine strategy with automatic fallback:
 
 1. **Tesseract OCR** (primary) — if the system binary is installed:
    - **PSM 6** — assume a single uniform block of text
-   - **OEM 3** — LSTM neural network engine (highest accuracy)
+   - **OEM 1** — LSTM neural network engine only (faster, sufficient accuracy)
 2. **EasyOCR** (fallback) — pure Python, no system binary required:
    - Uses CRAFT (Character Region Awareness for Text detection) + CRNN (Convolutional Recurrent Neural Network) for recognition
    - The EasyOCR `Reader` is **cached as a module-level singleton** (`_get_easyocr_reader()`) so the ~50 MB model is loaded once and reused across all subsequent scans, significantly improving performance
@@ -618,6 +626,30 @@ Uses a dual-engine strategy with automatic fallback:
 
 - Extracts text → runs Presidio analysis → applies anonymisation
 - Returns `{ extracted_text, entities_found, redacted_text }`
+
+#### Step 4 — Image Redaction (`redact_image_pii`)
+
+Visually redacts PII in the original image by drawing black bounding boxes over detected PII words. This replaces the previous `presidio-image-redactor` dependency with a simpler, faster approach using only `pytesseract` + `PIL` + the existing Presidio analyzer.
+
+**Pipeline:**
+
+1. Open image with PIL, resize if any dimension exceeds 1500 px (for speed)
+2. Run `pytesseract.image_to_data()` with `--oem 1 --psm 6` to get every word with its exact pixel bounding box (`left`, `top`, `width`, `height`)
+3. Build a full text string from all OCR words, tracking each word's character start/end position in that string
+4. Run `analyzer.analyze(text=full_text, language="en")` to get PII entity spans (character offsets)
+5. For each PII entity span, find all words whose character range overlaps the entity
+6. Draw filled black rectangles over those words' bounding boxes using `PIL.ImageDraw`
+7. Save the redacted image to the output path
+
+```python
+def redact_image_pii(image_path: str, output_path: str, analyzer) -> str
+```
+
+**Key advantages over presidio-image-redactor:**
+- Zero new dependencies (pytesseract, PIL, and presidio-analyzer are already installed)
+- More reliable — presidio-image-redactor frequently failed with import/runtime errors
+- Faster — no spaCy model loading overhead from the image-redactor package
+- Produces a real redacted image file every time (with fallback copy if redaction fails)
 
 ---
 
@@ -711,6 +743,33 @@ Returns a filtered and confidence-boosted entity list.
 
 ---
 
+### 4.15 Audio Handler (`audio_handler.py`)
+
+Transcribes audio files (`.mp3`, `.wav`) using OpenAI Whisper with word-level timestamps, detects PII in the transcript via Presidio, and overlays a 1 kHz sine-wave beep over each PII word segment in the audio.
+
+#### Pipeline
+
+1. **Transcribe** — loads the Whisper `base` model and transcribes the audio with `word_timestamps=True` to get each word's start/end time in milliseconds
+2. **Detect PII** — passes the full transcript through `sanitize_text_fn` (Presidio) to get masked text; compares original vs masked to identify which words were redacted
+3. **Beep overlay** — for each PII word, generates a 1 kHz sine-wave beep matching the word's duration using `pydub.AudioSegment`, then overlays it on the original audio at that timestamp
+4. **Export** — saves the sanitized audio as `.mp3` to the `sanitized_files/` directory
+
+#### Key Functions
+
+| Function | Purpose |
+|---|---|
+| `process_audio_file(audio_path, sanitize_text_fn, output_dir, doc_id)` | Full pipeline — returns dict with `sanitized_path`, `transcript`, `masked_text`, `entities`, `entity_count`, `threat_level`, `risk_score` |
+| `_generate_beep(duration_ms, freq, sample_rate, volume_dbfs)` | Generates a sine-wave `AudioSegment` at the specified frequency and duration |
+| `_ensure_ffmpeg()` | Points pydub to the bundled `imageio-ffmpeg` binary so it works without system FFmpeg |
+
+#### Dependencies
+
+- **openai-whisper** — speech-to-text with word timestamps
+- **pydub** — audio segment manipulation
+- **imageio-ffmpeg** — bundled FFmpeg binary (no system install required)
+
+---
+
 ## 5. Flask API Server (`app.py`)
 
 The Flask application exposes REST endpoints and handles CORS for cross-origin requests from the frontend (served from `file://` or `localhost`).
@@ -719,8 +778,8 @@ The Flask application exposes REST endpoints and handles CORS for cross-origin r
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/scan` | **Primary endpoint** — receives base64 file data, runs the full pipeline, returns sanitised results + sanitised file data-URI |
-| `GET` | `/api/download-sanitized/<doc_id>` | Download the sanitised file in its original format (PDF, DOCX, etc.) by Firestore document ID |
+| `POST` | `/api/scan` | **Primary endpoint** — accepts direct file upload (FormData) or JSON with `fileUrl`. Queues background processing and returns `202 Accepted` immediately |
+| `GET` | `/api/download-sanitized/<doc_id>` | Download the sanitised file in its original format (PDF, DOCX, images, audio, etc.) by Firestore document ID. Regenerates on-the-fly for images if missing |
 | `POST` | `/analyze` | Text-only analysis (for textarea input) |
 | `POST` | `/analyze_table` | ASCII table cell-by-cell processing |
 | `POST` | `/upload` | Multipart file upload with SQLite metadata storage |
@@ -730,16 +789,29 @@ The Flask application exposes REST endpoints and handles CORS for cross-origin r
 
 ### `/api/scan` — Main Endpoint (Detail)
 
-This is the route the frontend actually calls. Flow:
+This is the route the frontend actually calls. Accepts two input modes:
 
-1. Receives JSON: `{ fileData: "data:*;base64,...", fileName: "doc.pdf", user: "email" }`
-2. Decodes base64 → writes to temp file
-3. Checks if the content is an ASCII table → routes to `table_processor` if yes
-4. Calls `file_handlers.process_file()` to produce a sanitised output file (PDF/DOCX/XLSX/TXT)
-5. Reads the sanitised file → encodes as a base64 data-URI (`data:mime/type;base64,...`)
-6. Calls `pipeline.process_document()` for the full analysis (entities, threat report, etc.)
-7. Returns JSON with `sanitizedFileData` (data-URI), `masked_text`, `entities`, `threat_level`, `risk_score`, etc.
-8. Cleans up temp files
+**Mode 1 — Direct file upload (FormData):**
+1. Receives multipart form with `file`, `fileName`, `docId`, `fileType`
+2. Saves file to `temp/` directory
+3. Spawns a background thread (`_background_scan`) and returns `HTTP 202` immediately
+
+**Mode 2 — JSON with file URL:**
+1. Receives JSON: `{ fileUrl: "https://...", fileName: "doc.pdf", docId: "...", fileType: "..." }`
+2. Spawns a background thread that downloads the file and processes it
+3. Returns `HTTP 202` immediately
+
+### Background Thread (`_background_scan`)
+
+All heavy processing runs in a daemon thread to avoid blocking the HTTP response:
+
+1. Downloads file from URL (if not a direct upload) → saves to `temp/`
+2. **Audio files** (`.mp3`, `.wav`) → routes to `audio_handler.process_audio_file()` for Whisper transcription + beep overlay
+3. **Image files** (`.png`, `.jpg`, `.jpeg`) → resizes if >1200 px, then calls `ocr_pipeline.redact_image_pii()` to produce a visually redacted image; always writes `sanitizedFilePath` to Firestore
+4. **All other files** → calls `file_handlers.process_file()` for format-specific sanitisation, then runs `pipeline.process_document()` for full analysis
+5. Updates Firestore `files/{docId}` with `status: "completed"`, `scanResults`, `sanitizedFileData`, and `sanitizedFilePath`
+6. On failure, updates Firestore with `status: "error"` and `scanError`
+7. Has a 300-second hard timeout with checkpoint tracking via `_check_timeout()`
 
 ### Helper Functions
 
@@ -750,6 +822,9 @@ This is the route the frontend actually calls. Flow:
 | `process_text_with_presidio(text)` | Callback wrapper — analyzes + anonymises text via Presidio. Used as the `sanitize` argument for `file_handlers` |
 | `is_ascii_table(text)` | Detects pipe-delimited tables by counting `|` characters across lines |
 | `init_db()` | Creates SQLite `documents` table if it doesn't exist |
+| `init_firebase()` | Initialises Firebase Admin SDK for server-side Firestore writes |
+| `_background_scan(file_url, file_name, doc_id, ext, local_path)` | Background thread — downloads, processes, and writes results to Firestore |
+| `_update_firestore_error(doc_id, error_msg)` | Helper — updates Firestore with error status |
 
 ---
 
@@ -785,15 +860,16 @@ The frontend is built as **single-page React applications** embedded in HTML fil
 
 ### Upload & Scan Flow (`Upload.html`)
 
-1. User drags/drops or selects files (allowed: `.txt`, `.csv`, `.pdf`, `.docx`, `.xlsx`, `.sql`, `.png`, `.jpg`, `.jpeg`)
-2. File is read as base64 via `FileReader.readAsDataURL()`
-3. Metadata is saved to Firestore `files` collection (status: `uploaded`)
-4. `scanFile()` is called:
-   - Sets status → `processing`
-   - POSTs to `/api/scan` with `{ fileData, fileName, user }`
-   - On success: saves `scanResults` + `sanitizedFileData` to Firestore, sets status → `completed`
-   - On failure: saves `scanError`, sets status → `error`
-5. Results modal shows: threat level badge, risk score, entity count, entity breakdown, masked text preview
+1. User drags/drops or selects files (allowed: `.txt`, `.csv`, `.pdf`, `.docx`, `.xlsx`, `.sql`, `.png`, `.jpg`, `.jpeg`, `.mp3`, `.wav`)
+2. File metadata is saved to Firestore `files` collection (status: `uploaded`)
+3. `scanFile()` is called:
+   - If the file has binary data, uploads via FormData (direct file upload) to `POST /api/scan`
+   - Otherwise sends JSON with `fileUrl` from Firebase Storage
+   - Backend returns `HTTP 202` immediately; processing happens in a background thread
+4. Frontend uses Firestore `onSnapshot` listener to watch for real-time status updates
+   - Uses a **surgical per-row merge** strategy (functional state update with field-level comparison) to prevent UI flickering when Firestore snapshots fire
+   - Unchanged rows keep the same object reference so React skips re-rendering them
+5. When status changes to `completed`, results are displayed: threat level badge, risk score, entity count, entity breakdown, masked text preview
 
 ---
 
@@ -905,12 +981,14 @@ Viewer Pages (SanitizedFilesViewer.html, DownloadSanitized.html)
 └─────────────────────────┬──────────────────────────────────────┘
                           │
 ┌─────────────────────────▼──────────────────────────────────────┐
-│ STEP 7: SANITISED FILE GENERATION (file_handlers.py)           │
+│ STEP 7: SANITISED FILE GENERATION (file_handlers.py + ocr/audio) │
 │ Produces a sanitised copy in the original format:              │
 │   .pdf → black redaction boxes over PII regions                │
 │   .docx → sanitised paragraphs with formatting preserved       │
 │   .xlsx → cell-by-cell replacement                             │
 │   .txt/.csv → full text replacement                            │
+│   .png/.jpg → black bounding boxes over PII words (redact_image_pii) │
+│   .mp3/.wav → 1 kHz beep overlay on PII word segments          │
 │ → Output: sanitised file in sanitized_files/ directory         │
 └─────────────────────────┬──────────────────────────────────────┘
                           │
@@ -1070,7 +1148,9 @@ users/{userId}
 files/{docId}
   ├── fileName: string
   ├── fileData: string (base64 data-URI — original)
+  ├── fileUrl: string (Firebase Storage download URL)
   ├── sanitizedFileData: string (base64 data-URI — sanitised)
+  ├── sanitizedFilePath: string (filename in sanitized_files/ directory)
   ├── fileSize: number
   ├── uploadedBy: string
   ├── uploadTime: timestamp
@@ -1082,6 +1162,7 @@ files/{docId}
   │     entity_breakdown: map
   │     entities: array (max 50)
   │     masked_text: string (max 5000 chars)
+  │     sanitizedFileData: string (truncated preview)
   │     recommended_actions: array
   │     scannedAt: string
   │   }
@@ -1151,7 +1232,7 @@ RBAC views:
 | Database exfiltration | AES-256-GCM double-encrypts all PII at rest |
 | Audit log tampering | SHA-256 hash chain — modifying any entry breaks all downstream hashes |
 | SQL injection in dumps | SQL handler validates syntax, escapes quotes, processes string values only |
-| OCR evasion | Tesseract LSTM + image preprocessing (bilateral filter, adaptive threshold) |
+| OCR evasion | Tesseract LSTM + image preprocessing (Gaussian blur, adaptive threshold) |
 | False negatives (missed PII) | Custom Indian recognizers + IndianNameRecognizer fallback |
 | Credential theft | Firebase Auth with bcrypt; no raw passwords stored |
 
@@ -1223,13 +1304,16 @@ Hackamined/
     ├── audit_logger.py             SHA-256 hash-chain audit log
     ├── table_processor.py          ASCII table cell-by-cell processing
     ├── sql_handler.py              SQL dump sanitisation
-    ├── ocr_pipeline.py             OCR pipeline (Tesseract + EasyOCR fallback)
+    ├── ocr_pipeline.py             OCR pipeline (Tesseract + EasyOCR) + image PII redaction
+    ├── audio_handler.py            Audio PII sanitisation (Whisper + beep overlay)
     ├── file_handlers.py            Format-specific file sanitisation
     ├── context_rules.py            Context-aware PII post-processing rules
     ├── config.py                   Centralised configuration
     ├── db_schema.sql               Full database schema
     ├── requirements.txt            Python dependencies
     ├── test_pipeline.py            Unit tests
+    ├── _test_quarterly.py          Quarterly test suite
+    ├── pii_shield.db               SQLite database (auto-created)
     ├── audit_log.json              Persistent audit chain
     ├── templates/
     │   └── index.html              Flask template

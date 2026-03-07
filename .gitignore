@@ -5,7 +5,8 @@ logic/serviceAccountKey.json
 __pycache__/
 *.pyc
 *.pyo
-
+.venv/
+venv/
 # Database
 *.db
 

@@ -14,7 +14,7 @@ from presidio_analyzer import AnalyzerEngine, RecognizerRegistry, RecognizerResu
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
 
-from recognizers import IndianAadhaarRecognizer, IndianPanRecognizer, IndianNameRecognizer
+from recognizers import IndianAadhaarRecognizer, IndianPanRecognizer, IndianNameRecognizer, BiometricHashRecognizer
 from config import ENTITY_TYPES, MIN_CONFIDENCE_SCORE
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ def create_analyzer() -> AnalyzerEngine:
     registry.add_recognizer(IndianAadhaarRecognizer())
     registry.add_recognizer(IndianPanRecognizer())
     registry.add_recognizer(IndianNameRecognizer())
+    registry.add_recognizer(BiometricHashRecognizer())
 
     analyzer = AnalyzerEngine(registry=registry)
     logger.info("AnalyzerEngine initialized with %d recognizers", len(registry.recognizers))
@@ -63,6 +64,7 @@ DEFAULT_OPERATORS = {
     "LOCATION":      OperatorConfig("replace", {"new_value": "[REDACTED_LOCATION]"}),
     "DATE_TIME":     OperatorConfig("replace", {"new_value": "[REDACTED_DATE]"}),
     "URL":           OperatorConfig("replace", {"new_value": "[REDACTED_URL]"}),
+    "BIOMETRIC_HASH": OperatorConfig("replace", {"new_value": "[REDACTED_BIOMETRIC]"}),
     "DEFAULT":       OperatorConfig("replace", {"new_value": "[REDACTED]"}),
 }
 

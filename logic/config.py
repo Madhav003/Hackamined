@@ -46,6 +46,8 @@ ENTITY_TYPES = [
     # Custom Indian PII entities
     "IN_AADHAAR",
     "IN_PAN",
+    # Biometric / hashed data
+    "BIOMETRIC_HASH",
 ]
 
 # Minimum confidence threshold for Presidio detections
@@ -69,6 +71,7 @@ ENTITY_RISK_WEIGHTS: dict[str, int] = {
     "DATE_TIME":       2,   # Low risk alone, high when combined
     "PERSON":          2,   # Name alone is low risk
     "URL":             1,   # Minimal direct risk
+    "BIOMETRIC_HASH":  10,  # Biometric identifiers — extremely sensitive
 }
 
 # Threat level thresholds (cumulative weighted score)

@@ -13,29 +13,10 @@ Pipeline:
   4. Pass extracted text through Presidio analyzer
   5. Return redacted text
 
-BONUS — Conceptual Image Redaction:
-  For drawing black bounding boxes over PII in the original image,
-  Presidio provides an ImageRedactorEngine. The conceptual approach:
-  
-  1. Use Presidio's ImageRedactorEngine with a configured OCR engine
-  2. The engine internally:
-     a. Runs OCR to get text + bounding box coordinates
-     b. Maps Presidio NER results back to bounding box positions
-     c. Draws filled black rectangles over detected PII regions
-  3. Output: A new image with PII visually redacted
-  
-  Code sketch (requires presidio-image-redactor package):
-  
-      from presidio_image_redactor import ImageRedactorEngine
-      from PIL import Image
-      
-      engine = ImageRedactorEngine()
-      image = Image.open("id_card.png")
-      redacted_image = engine.redact(image, fill=(0, 0, 0))  # Black boxes
-      redacted_image.save("id_card_redacted.png")
-  
-  This approach is used in production for redacting scanned passports,
-  driver's licenses, and medical records.
+Image Redaction:
+  The redact_image_pii() function draws black bounding boxes over PII
+  in the original image using pytesseract word-level boxes + Presidio
+  analyzer, without requiring presidio-image-redactor.
 =============================================================================
 """
 
@@ -82,8 +63,8 @@ def preprocess_image(filepath: str):
     # Step 1: Convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    # Step 2: Denoise while preserving edges
-    denoised = cv2.bilateralFilter(gray, 11, 17, 17)
+    # Step 2: Fast denoise (GaussianBlur is much faster than bilateralFilter)
+    denoised = cv2.GaussianBlur(gray, (3, 3), 0)
 
     # Step 3: Adaptive thresholding for uneven lighting
     # (common in phone photos of ID cards)
@@ -98,6 +79,65 @@ def preprocess_image(filepath: str):
     logger.info("Image preprocessed: %s (%dx%d)", 
                 os.path.basename(filepath), thresh.shape[1], thresh.shape[0])
     return thresh
+
+
+def redact_image_pii(image_path: str, output_path: str, analyzer) -> str:
+    """
+    OCR the image, find PII with Presidio, draw black boxes over PII words.
+    Returns the output_path where the sanitized image was saved.
+    """
+    import pytesseract
+    from PIL import Image, ImageDraw
+    from config import TESSERACT_CMD
+
+    if TESSERACT_CMD:
+        pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
+
+    img = Image.open(image_path).convert("RGB")
+
+    # Resize if too large for speed
+    max_dim = 1500
+    if max(img.size) > max_dim:
+        ratio = max_dim / max(img.size)
+        img = img.resize((int(img.size[0]*ratio), int(img.size[1]*ratio)), Image.LANCZOS)
+
+    # Get word-level bounding boxes
+    data = pytesseract.image_to_data(img, config="--oem 1 --psm 6", output_type=pytesseract.Output.DICT)
+
+    # Build full text and track each word's position in the string
+    words = []
+    full_text = ""
+    for i, word in enumerate(data["text"]):
+        if not word.strip():
+            full_text += " "
+            continue
+        start = len(full_text)
+        full_text += word
+        end = len(full_text)
+        full_text += " "
+        words.append({
+            "word": word,
+            "start": start,
+            "end": end,
+            "x": data["left"][i],
+            "y": data["top"][i],
+            "w": data["width"][i],
+            "h": data["height"][i],
+        })
+
+    # Run Presidio on the full text
+    results = analyzer.analyze(text=full_text, language="en")
+
+    # Draw black boxes over words that fall inside any PII span
+    draw = ImageDraw.Draw(img)
+    for entity in results:
+        for word_info in words:
+            if word_info["end"] > entity.start and word_info["start"] < entity.end:
+                x, y, w, h = word_info["x"], word_info["y"], word_info["w"], word_info["h"]
+                draw.rectangle([x, y, x+w, y+h], fill=(0, 0, 0))
+
+    img.save(output_path)
+    return output_path
 
 
 def extract_text_from_image(filepath: str) -> str:
@@ -115,7 +155,7 @@ def extract_text_from_image(filepath: str) -> str:
             pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
 
         preprocessed = preprocess_image(filepath)
-        custom_config = r"--oem 3 --psm 6"
+        custom_config = r"--oem 1 --psm 6"
         text = pytesseract.image_to_string(preprocessed, config=custom_config)
         logger.info("OCR (Tesseract) extracted %d characters from %s", len(text), os.path.basename(filepath))
         return text.strip()

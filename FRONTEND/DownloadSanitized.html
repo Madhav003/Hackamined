@@ -210,8 +210,9 @@
             const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
             const handleDownload = (file) => {
-                // If a sanitized file exists on the server in original format, download it
-                if (file.sanitizedFilePath) {
+                // For images and files with sanitizedFilePath, always use the API endpoint
+                const isImage = ['PNG','JPG','JPEG'].includes((file.fileType || '').toUpperCase());
+                if (file.sanitizedFilePath || isImage) {
                     const link = document.createElement('a');
                     link.href = 'http://localhost:5000/api/download-sanitized/' + file.id;
                     link.download = '';
@@ -458,6 +459,20 @@
                                         <div className="bg-slate-50 p-3 rounded-xl"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">PII Removed</p><p className="font-semibold text-emerald-600">{previewFile.piiRemoved + " entities"}</p></div>
                                     </div>
                                     {(() => {
+                                        const isImage = ['PNG','JPG','JPEG'].includes(previewFile.fileType);
+                                        if (isImage) {
+                                            return (
+                                                <div className="space-y-3">
+                                                    <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl flex items-center gap-2">
+                                                        <svg className="h-4 w-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                        <span className="text-xs font-medium text-blue-700">Sanitized image with PII visually redacted (black boxes).</span>
+                                                    </div>
+                                                    <div className="bg-slate-100 rounded-xl p-4 border border-slate-200 flex justify-center">
+                                                        <img src={'http://localhost:5000/api/download-sanitized/' + previewFile.id + '?inline=1'} alt="Sanitized" className="max-h-[40vh] rounded-lg shadow" />
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
                                         const content = previewFile.sanitizedFileData || (previewFile.scanResults && previewFile.scanResults.masked_text) || '';
                                         if (!content) return (
                                             <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-center">

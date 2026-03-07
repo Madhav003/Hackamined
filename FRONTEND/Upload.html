@@ -159,6 +159,7 @@
             const activeMenu = 'Upload Files';
             const fileInputRef = useRef(null);
             const lastSnapshotRef = useRef('');
+            const debounceRef = useRef(null);
             const [userName, setUserName] = useState('Admin User');
 
             const [dragActive, setDragActive] = useState(false);
@@ -192,36 +193,71 @@
                         if (!userDoc.exists() || (userDoc.data().role || '').toLowerCase() !== 'admin') { window.location.href = 'UserDashboard.html'; return; }
                         setUserName(userDoc.data().name || 'Admin User');
 
-                        // Live listener on files collection
+                        // Live listener on files collection (debounced to prevent UI flicker)
                         window.onSnapshot(
                             window.query(window.collection(window.firebaseDb, 'files'), window.orderBy('uploadTime', 'desc')),
                             (snapshot) => {
-                                const files = snapshot.docs.map(d => {
-                                    const data = d.data();
-                                    const t = data.uploadTime && data.uploadTime.toDate ? data.uploadTime.toDate() : new Date();
-                                    return {
-                                        id: d.id,
-                                        fileName: data.fileName,
-                                        fileType: data.fileName.split('.').pop().toUpperCase(),
-                                        fileSize: formatBytes(data.fileSize || 0),
-                                        uploadTime: t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                                        scanStatus: data.status === 'completed' ? 'Completed' : data.status === 'processing' ? 'Scanning' : data.status === 'error' ? 'Error' : 'Pending',
-                                        threatLevel: data.scanResults ? data.scanResults.threat_level : null,
-                                        entityCount: data.scanResults ? data.scanResults.entity_count : 0,
-                                        scanResults: data.scanResults || null,
-                                        sanitizedFileData: data.sanitizedFileData || null,
-                                        sanitizedFilePath: data.sanitizedFilePath || null,
-                                        fileUrl: data.fileUrl || null,
-                                        fileData: data.fileData || null,
-                                        scanError: data.scanError || null,
-                                    };
-                                });
-                                // Only update state if data actually changed (reduces jitter)
-                                const fingerprint = files.map(f => f.id + f.scanStatus + f.entityCount + (f.threatLevel||'')).join('|');
-                                if (fingerprint !== lastSnapshotRef.current) {
-                                    lastSnapshotRef.current = fingerprint;
-                                    setQueueFiles(files);
-                                }
+                                if (debounceRef.current) clearTimeout(debounceRef.current);
+                                debounceRef.current = setTimeout(() => {
+                                    setQueueFiles(prev => {
+                                        const prevMap = new Map(prev.map(f => [f.id, f]));
+                                        const incomingIds = new Set();
+                                        let changed = false;
+
+                                        const result = snapshot.docs.map(d => {
+                                            const data = d.data();
+                                            incomingIds.add(d.id);
+                                            const existing = prevMap.get(d.id);
+
+                                            // Compute values that affect visible UI
+                                            const scanStatus = data.status === 'completed' ? 'Completed' : data.status === 'processing' ? 'Scanning' : data.status === 'error' ? 'Error' : 'Pending';
+                                            const threatLevel = data.scanResults ? data.scanResults.threat_level : null;
+                                            const entityCount = data.scanResults ? data.scanResults.entity_count : 0;
+                                            const sanitizedFilePath = data.sanitizedFilePath || null;
+                                            const scanError = data.scanError || null;
+
+                                            // If row exists and nothing visible changed, keep old reference (prevents re-render)
+                                            if (existing &&
+                                                existing.scanStatus === scanStatus &&
+                                                existing.threatLevel === threatLevel &&
+                                                existing.entityCount === entityCount &&
+                                                existing.sanitizedFilePath === sanitizedFilePath &&
+                                                existing.scanError === scanError) {
+                                                return existing;
+                                            }
+
+                                            // New or changed row — create fresh object
+                                            changed = true;
+                                            const t = data.uploadTime && data.uploadTime.toDate ? data.uploadTime.toDate() : new Date();
+                                            return {
+                                                id: d.id,
+                                                fileName: data.fileName,
+                                                fileType: data.fileName.split('.').pop().toUpperCase(),
+                                                fileSize: formatBytes(data.fileSize || 0),
+                                                uploadTime: t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                                                scanStatus,
+                                                threatLevel,
+                                                entityCount,
+                                                scanResults: data.scanResults || null,
+                                                sanitizedFileData: data.sanitizedFileData || null,
+                                                sanitizedFilePath,
+                                                fileUrl: data.fileUrl || null,
+                                                fileData: data.fileData || null,
+                                                scanError,
+                                            };
+                                        });
+
+                                        // Check for removed files
+                                        if (!changed && prev.length !== result.length) changed = true;
+                                        if (!changed) {
+                                            for (const f of prev) {
+                                                if (!incomingIds.has(f.id)) { changed = true; break; }
+                                            }
+                                        }
+
+                                        return changed ? result : prev;
+                                    });
+                                }, 300);
                             }
                         );
                     });
@@ -653,7 +689,7 @@
                                                     const tc = fileTypeColors[doc.fileType] || 'bg-slate-100 text-slate-500';
                                                     const sc = statusStyles[doc.scanStatus] || statusStyles['Pending'];
                                                     return (
-                                                        <tr key={doc.id} className="hover:bg-slate-50/60 transition-colors group">
+                                                        <tr key={doc.id} id={"row-" + doc.id} className="hover:bg-slate-50/60 transition-colors group">
                                                             <td className="p-4 pl-6">
                                                                 <div className="flex items-center space-x-3">
                                                                     <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 ${tc}`}>{doc.fileType}</div>
@@ -690,11 +726,7 @@
                                                             </td>
                                                             <td className="p-4 pr-6 text-right">
                                                                 <div className="flex items-center justify-end space-x-1">
-                                                                    {doc.scanResults ? (
-                                                                        <button onClick={() => { setModalTab('sanitized'); setViewingResult(doc); }} className="px-2.5 py-1 text-[11px] font-bold text-deepblue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors" title="View AI Results">
-                                                                            View Results
-                                                                        </button>
-                                                                    ) : (doc.scanStatus === 'Pending' || doc.scanStatus === 'Error') ? (
+                                                                    {(doc.scanStatus === 'Pending' || doc.scanStatus === 'Error') ? (
                                                                         <button onClick={() => scanFile(doc.id, null, doc.fileName)} className="px-2.5 py-1 text-[11px] font-bold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded-lg transition-colors" title="Run AI Scan">
                                                                             {doc.scanStatus === 'Error' ? 'Retry Scan' : 'Scan'}
                                                                         </button>

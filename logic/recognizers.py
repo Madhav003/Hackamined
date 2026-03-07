@@ -305,3 +305,82 @@ class IndianNameRecognizer(PatternRecognizer):
             return None  # Let default scoring decide
 
         return False
+
+
+# ---------------------------------------------------------------------------
+# Biometric / Hashed Data Recognizer
+# ---------------------------------------------------------------------------
+
+class BiometricHashRecognizer(PatternRecognizer):
+    """
+    Detects hashed biometric identifiers such as fingerprint hashes
+    and face template tokens.
+
+    Patterns detected:
+      • fp_hash_<hex>        — fingerprint hash
+      • face_tmp_<hex>       — face template token
+      • face_template_<hex>  — face template (alternate form)
+      • fingerprint_<hex>    — fingerprint identifier
+      • iris_hash_<hex>      — iris scan hash
+      • bio_hash_<hex>       — generic biometric hash
+      • voice_hash_<hex>     — voiceprint hash
+      • retina_hash_<hex>    — retina scan hash
+    """
+
+    CONTEXT_WORDS = [
+        "fingerprint", "biometric", "face", "facial", "template",
+        "hash", "iris", "retina", "voiceprint", "biometrics",
+        "fp_hash", "face_tmp", "bio_hash",
+    ]
+
+    PATTERNS = [
+        Pattern(
+            "FP_HASH",
+            r"\bfp_hash_[a-f0-9]{6,64}\b",
+            0.85,
+        ),
+        Pattern(
+            "FACE_TMP",
+            r"\bface_tmp_[a-f0-9]{6,64}\b",
+            0.85,
+        ),
+        Pattern(
+            "FACE_TEMPLATE",
+            r"\bface_template_[a-f0-9]{6,64}\b",
+            0.85,
+        ),
+        Pattern(
+            "FINGERPRINT",
+            r"\bfingerprint_[a-f0-9]{6,64}\b",
+            0.85,
+        ),
+        Pattern(
+            "IRIS_HASH",
+            r"\biris_hash_[a-f0-9]{6,64}\b",
+            0.80,
+        ),
+        Pattern(
+            "BIO_HASH",
+            r"\bbio_hash_[a-f0-9]{6,64}\b",
+            0.80,
+        ),
+        Pattern(
+            "VOICE_HASH",
+            r"\bvoice_hash_[a-f0-9]{6,64}\b",
+            0.80,
+        ),
+        Pattern(
+            "RETINA_HASH",
+            r"\bretina_hash_[a-f0-9]{6,64}\b",
+            0.80,
+        ),
+    ]
+
+    def __init__(self):
+        super().__init__(
+            supported_entity="BIOMETRIC_HASH",
+            patterns=self.PATTERNS,
+            context=self.CONTEXT_WORDS,
+            supported_language="en",
+            name="Biometric Hash Recognizer",
+        )
