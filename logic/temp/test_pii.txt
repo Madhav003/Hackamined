@@ -1,0 +1,4 @@
+Name: Aarav Mehta
+Email: aarav@example.com
+Phone: +91 9876511234
+PAN: BGHPM4521K

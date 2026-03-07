@@ -115,11 +115,16 @@ def _replace_paragraph_text(paragraph, new_text: str):
 
 def handle_pdf(input_path: str, output_path: str, sanitize: SanitizeFn) -> dict:
     """
-    Extract text from each PDF page, identify PII words by diffing
-    original vs. sanitized text, then draw black redaction boxes
-    over those words using PyMuPDF's redaction API.
+    Extract text from each PDF page, identify PII word *positions* by
+    comparing positioned word lists, then draw black redaction boxes
+    over only those exact bounding boxes using PyMuPDF's redaction API.
+
+    Uses page.get_text("words") so each word maps 1:1 to its bounding
+    box — avoids the old search_for() approach that redacted ALL
+    occurrences of a word on the page.
     """
     import fitz  # PyMuPDF
+    import difflib
 
     doc = fitz.open(input_path)
     pii_count = 0
@@ -131,24 +136,40 @@ def handle_pdf(input_path: str, output_path: str, sanitize: SanitizeFn) -> dict:
         if not page_text.strip():
             continue
 
+        # Text preview: sanitize the natural page text (preserves newlines)
         original_parts.append(page_text)
-        sanitized = sanitize(page_text)
-        sanitized_parts.append(sanitized)
+        sanitized_parts.append(sanitize(page_text))
 
-        # Find PII words: words present in original but replaced in sanitized
-        pii_words = _find_pii_words(page_text, sanitized)
-        if not pii_words:
+        # ----- Visual PDF redaction using word-level positions -----
+        word_tuples = page.get_text("words")
+        # Each tuple: (x0, y0, x1, y1, "word", block_no, line_no, word_no)
+        if not word_tuples:
             continue
 
-        pii_count += len(pii_words)
+        # Build word list from positioned words (1:1 with bounding boxes)
+        orig_words = [w[4] for w in word_tuples]
+        reconstructed = " ".join(orig_words)
 
-        # Search for each PII word on the page and add redaction annotations
-        for word in pii_words:
-            instances = page.search_for(word)
-            for rect in instances:
-                page.add_redact_annot(rect, fill=(0, 0, 0))  # black box
+        # Sanitize the reconstructed text so word indices stay aligned
+        san_text = sanitize(reconstructed)
+        san_words = san_text.split()
 
-        page.apply_redactions()
+        # Find which word POSITIONS are PII via difflib
+        matcher = difflib.SequenceMatcher(None, orig_words, san_words, autojunk=False)
+        pii_indices = set()
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag in ("replace", "delete"):
+                pii_indices.update(range(i1, i2))
+
+        pii_count += len(pii_indices)
+
+        # Redact only the specific PII word bounding boxes
+        for idx in pii_indices:
+            rect = fitz.Rect(word_tuples[idx][:4])
+            page.add_redact_annot(rect, fill=(0, 0, 0))
+
+        if pii_indices:
+            page.apply_redactions()
 
     doc.save(output_path, garbage=4, deflate=True)
     doc.close()
@@ -169,21 +190,28 @@ def handle_pdf(input_path: str, output_path: str, sanitize: SanitizeFn) -> dict:
 
 def _find_pii_words(original: str, sanitized: str) -> list:
     """
-    Compare original text with sanitized text word-by-word.
-    Return original words that were replaced (i.e. the PII tokens).
+    Compare original text with sanitized text using difflib to find
+    original words that were replaced by PII redaction tags.
+    Uses SequenceMatcher to handle word-count changes (e.g. two-word
+    names replaced by a single [REDACTED] tag) without cascading
+    false positives.
     """
+    import difflib
+
     orig_words = original.split()
     san_words = sanitized.split()
     pii_words = []
 
-    # Walk both word lists; mismatches indicate a PII replacement
-    min_len = min(len(orig_words), len(san_words))
-    for i in range(min_len):
-        if orig_words[i] != san_words[i]:
-            # Only add if the original word looks like real content (not whitespace)
-            cleaned = orig_words[i].strip(".,;:!?\"'()[]{}")
-            if cleaned and len(cleaned) > 1:
-                pii_words.append(cleaned)
+    matcher = difflib.SequenceMatcher(None, orig_words, san_words, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        # 'replace' or 'delete': the original words were PII
+        if tag in ("replace", "delete"):
+            for k in range(i1, i2):
+                cleaned = orig_words[k].strip(".,;:!?\"'()[]{}")
+                if cleaned and len(cleaned) > 1:
+                    pii_words.append(cleaned)
 
     return list(dict.fromkeys(pii_words))  # deduplicate, preserve order
 

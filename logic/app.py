@@ -418,6 +418,25 @@ def scan_status(doc_id):
     return jsonify(entry), 200
 
 
+@app.route("/api/reset-stuck", methods=["POST"])
+def reset_stuck_documents():
+    """Reset Firestore documents stuck in 'processing' status to 'error'."""
+    if not _firestore_client:
+        return jsonify({"error": "Firestore not available"}), 503
+    try:
+        stuck = _firestore_client.collection("files").where("status", "==", "processing").stream()
+        count = 0
+        for doc in stuck:
+            doc.reference.update({
+                "status": "error",
+                "scanError": "Server restarted — please re-upload this file.",
+            })
+            count += 1
+        return jsonify({"reset": count}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/download-sanitized/<doc_id>", methods=["GET"])
 def download_sanitized_file(doc_id):
     """

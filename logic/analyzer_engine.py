@@ -52,7 +52,7 @@ def create_anonymizer() -> AnonymizerEngine:
 # Maps each entity type to its masking strategy.
 
 DEFAULT_OPERATORS = {
-    "PERSON":        OperatorConfig("replace", {"new_value": "[REDACTED_NAME]"}),
+    # "PERSON" excluded — names should not be redacted
     "EMAIL_ADDRESS": OperatorConfig("replace", {"new_value": "[REDACTED_EMAIL]"}),
     "PHONE_NUMBER":  OperatorConfig("replace", {"new_value": "[REDACTED_PHONE]"}),
     "CREDIT_CARD":   OperatorConfig("mask",    {"type": "mask", "masking_char": "X",

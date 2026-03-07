@@ -34,7 +34,7 @@ FPE_TWEAK: bytes = os.urandom(7)
 # Supported entity types (built-in + custom Indian entities)
 ENTITY_TYPES = [
     # Built-in Presidio entities
-    "PERSON",
+    # "PERSON" — intentionally excluded; names should not be redacted
     "EMAIL_ADDRESS",
     "PHONE_NUMBER",
     "CREDIT_CARD",
@@ -69,7 +69,7 @@ ENTITY_RISK_WEIGHTS: dict[str, int] = {
     "IP_ADDRESS":      3,   # Network reconnaissance
     "LOCATION":        3,   # Physical security risk
     "DATE_TIME":       2,   # Low risk alone, high when combined
-    "PERSON":          2,   # Name alone is low risk
+    # "PERSON":       2,   # Excluded — names are not redacted
     "URL":             1,   # Minimal direct risk
     "BIOMETRIC_HASH":  10,  # Biometric identifiers — extremely sensitive
 }

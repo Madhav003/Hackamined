@@ -19062,5 +19062,189 @@
     "details": "SQL threat level: CRITICAL",
     "prev_hash": "a425e1808eb5ac15bfd0fbb57e9c00b3af0dcfbf5dd0554c8487762b9ae1a42e",
     "entry_hash": "4e94efac40532468dfb3ad62220bbe2d4999d736c75a690327bf0c7f98ef5449"
+  },
+  {
+    "timestamp": "2026-03-07T05:59:50.313890+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: test_pii.pdf",
+    "prev_hash": "4e94efac40532468dfb3ad62220bbe2d4999d736c75a690327bf0c7f98ef5449",
+    "entry_hash": "74dc57967d4eae2f8ac6682f18b827e1bad95170c4d76c49a6ea438491677683"
+  },
+  {
+    "timestamp": "2026-03-07T05:59:50.366482+00:00",
+    "user": "admin",
+    "action": "EXTRACT",
+    "details": "Extracted 72 chars from test_pii.pdf",
+    "prev_hash": "74dc57967d4eae2f8ac6682f18b827e1bad95170c4d76c49a6ea438491677683",
+    "entry_hash": "2c427df7bfdb3864324b6e46d62fe1c1f9b5839685a61ce75c005f825b082414"
+  },
+  {
+    "timestamp": "2026-03-07T05:59:50.421774+00:00",
+    "user": "admin",
+    "action": "ANALYZE",
+    "details": "Detected 4 PII entities in test_pii.pdf",
+    "prev_hash": "2c427df7bfdb3864324b6e46d62fe1c1f9b5839685a61ce75c005f825b082414",
+    "entry_hash": "39caf55b05a89384b76232a634731f6fbb1017de2d7e61c0ff107cb1f206ac59"
+  },
+  {
+    "timestamp": "2026-03-07T05:59:50.706365+00:00",
+    "user": "admin",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for test_pii.pdf",
+    "prev_hash": "39caf55b05a89384b76232a634731f6fbb1017de2d7e61c0ff107cb1f206ac59",
+    "entry_hash": "099048a94b2215a72f115a7faee493ec6e782895d8ac5f5dee15ad96dd201285"
+  },
+  {
+    "timestamp": "2026-03-07T05:59:50.744168+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "Threat level: MEDIUM (score: 16.25)",
+    "prev_hash": "099048a94b2215a72f115a7faee493ec6e782895d8ac5f5dee15ad96dd201285",
+    "entry_hash": "f8d53d6fd251a27c83388a6b4d3b0dd282c527728dc768006b6acd6a7a9313c6"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:22.115964+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: test_all_001_test_pii_txt_test_pii.txt",
+    "prev_hash": "f8d53d6fd251a27c83388a6b4d3b0dd282c527728dc768006b6acd6a7a9313c6",
+    "entry_hash": "3febcad060cfcf3d287676b0fac2d7bc191226761a7a97995e620d6bcbae3447"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:22.155625+00:00",
+    "user": "admin",
+    "action": "EXTRACT",
+    "details": "Extracted 81 chars from test_all_001_test_pii_txt_test_pii.txt",
+    "prev_hash": "3febcad060cfcf3d287676b0fac2d7bc191226761a7a97995e620d6bcbae3447",
+    "entry_hash": "86b3d8e4c3e9da0c86af040e4f61a47e9a465f3478a82dd08e36ef73324f6aa8"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:22.212064+00:00",
+    "user": "admin",
+    "action": "ANALYZE",
+    "details": "Detected 4 PII entities in test_all_001_test_pii_txt_test_pii.txt",
+    "prev_hash": "86b3d8e4c3e9da0c86af040e4f61a47e9a465f3478a82dd08e36ef73324f6aa8",
+    "entry_hash": "de78a40307e4b4ad2829362ae889bc79ef0e79f894accb198ce5d497a2d24c0d"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:22.265578+00:00",
+    "user": "admin",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for test_all_001_test_pii_txt_test_pii.txt",
+    "prev_hash": "de78a40307e4b4ad2829362ae889bc79ef0e79f894accb198ce5d497a2d24c0d",
+    "entry_hash": "e44cb57edf764be9fb15f163efd09a60084f580bd7e3e1742b80d56eea6af243"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:22.308061+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "Threat level: MEDIUM (score: 16.25)",
+    "prev_hash": "e44cb57edf764be9fb15f163efd09a60084f580bd7e3e1742b80d56eea6af243",
+    "entry_hash": "a6f3a8ff62119f7457672e7e1bbffe84dfca275a73930b39b98c8feae4b7b8d2"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:28.261520+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: test_all_001_test_pii_csv_test_pii.csv",
+    "prev_hash": "a6f3a8ff62119f7457672e7e1bbffe84dfca275a73930b39b98c8feae4b7b8d2",
+    "entry_hash": "c1d46e5711c5f2dcae08c761c4885378ba8054e1403d8b69627308832edb7deb"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:28.301148+00:00",
+    "user": "admin",
+    "action": "EXTRACT",
+    "details": "Extracted 77 chars from test_all_001_test_pii_csv_test_pii.csv",
+    "prev_hash": "c1d46e5711c5f2dcae08c761c4885378ba8054e1403d8b69627308832edb7deb",
+    "entry_hash": "e620da02bb0a7ba0c2554a036c96a5c316bbc28de1b7b76ec8f9392743db13e9"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:28.356715+00:00",
+    "user": "admin",
+    "action": "ANALYZE",
+    "details": "Detected 4 PII entities in test_all_001_test_pii_csv_test_pii.csv",
+    "prev_hash": "e620da02bb0a7ba0c2554a036c96a5c316bbc28de1b7b76ec8f9392743db13e9",
+    "entry_hash": "278f8c8b08f3abd20fb3dcc0fffb2f933c632bbf01d90fd5aeb4b3c73a5ff8a8"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:28.397170+00:00",
+    "user": "admin",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for test_all_001_test_pii_csv_test_pii.csv",
+    "prev_hash": "278f8c8b08f3abd20fb3dcc0fffb2f933c632bbf01d90fd5aeb4b3c73a5ff8a8",
+    "entry_hash": "b1f8a931712eeb873960c13805fa080648e275c0a3e286762d2ee44d4b7f1d53"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:28.435963+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "Threat level: MEDIUM (score: 16.25)",
+    "prev_hash": "b1f8a931712eeb873960c13805fa080648e275c0a3e286762d2ee44d4b7f1d53",
+    "entry_hash": "1585777da14e743d86cebbe82792edf1ed3f3ac28af117b416070c20e7c6569b"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:34.392293+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: test_all_001_test_pii_sql_test_pii.sql",
+    "prev_hash": "1585777da14e743d86cebbe82792edf1ed3f3ac28af117b416070c20e7c6569b",
+    "entry_hash": "fcc354f86de981bcc4b494567137b98d3beb909cdd3a2da0ac9da5f2c9089b7f"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:34.489207+00:00",
+    "user": "admin",
+    "action": "SQL_SANITIZE",
+    "details": "Sanitized SQL dump: test_all_001_test_pii_sql_test_pii.sql \u2192 test_all_001_test_pii_sql_test_pii_sanitized.sql",
+    "prev_hash": "fcc354f86de981bcc4b494567137b98d3beb909cdd3a2da0ac9da5f2c9089b7f",
+    "entry_hash": "9b2f43e3b5f07d2c78a40190a7a45e67d3253a6c2b696926ac90a950c705b3cf"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:34.527706+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "SQL threat level: LOW",
+    "prev_hash": "9b2f43e3b5f07d2c78a40190a7a45e67d3253a6c2b696926ac90a950c705b3cf",
+    "entry_hash": "f7eec3938fc037c5ae6e8fd3da0b05466fa84f7707979dec9f8d2220d08feabc"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:40.703625+00:00",
+    "user": "admin",
+    "action": "UPLOAD",
+    "details": "File uploaded: test_all_001_test_pii_docx_test_pii.docx",
+    "prev_hash": "f7eec3938fc037c5ae6e8fd3da0b05466fa84f7707979dec9f8d2220d08feabc",
+    "entry_hash": "7ef4d8eacc0e1e9ef420ec871c0a678f785b3c830775998a277365dd49905de3"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:40.765984+00:00",
+    "user": "admin",
+    "action": "EXTRACT",
+    "details": "Extracted 80 chars from test_all_001_test_pii_docx_test_pii.docx",
+    "prev_hash": "7ef4d8eacc0e1e9ef420ec871c0a678f785b3c830775998a277365dd49905de3",
+    "entry_hash": "815755fff7144779ffbfe9685d1503b3871b961d1c1924f76304aaf2c9fc308f"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:40.825355+00:00",
+    "user": "admin",
+    "action": "ANALYZE",
+    "details": "Detected 4 PII entities in test_all_001_test_pii_docx_test_pii.docx",
+    "prev_hash": "815755fff7144779ffbfe9685d1503b3871b961d1c1924f76304aaf2c9fc308f",
+    "entry_hash": "5ac068819caa2d85b0508c99500f9074a41734aae43745d18265911e6df29724"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:40.870697+00:00",
+    "user": "admin",
+    "action": "ENCRYPT",
+    "details": "Generated dual-state record for test_all_001_test_pii_docx_test_pii.docx",
+    "prev_hash": "5ac068819caa2d85b0508c99500f9074a41734aae43745d18265911e6df29724",
+    "entry_hash": "f8837d9931baaba899280f0e87c23fb5457a177ad1044e2b334add2b9d107fd8"
+  },
+  {
+    "timestamp": "2026-03-07T06:12:40.910919+00:00",
+    "user": "admin",
+    "action": "REPORT",
+    "details": "Threat level: MEDIUM (score: 16.25)",
+    "prev_hash": "f8837d9931baaba899280f0e87c23fb5457a177ad1044e2b334add2b9d107fd8",
+    "entry_hash": "98b038e03287780ae9b209d0fb05c1ffa82f038962fdac4672b0b951cb6d074b"
   }
 ]
