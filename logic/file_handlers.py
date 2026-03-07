@@ -124,12 +124,17 @@ def handle_pdf(input_path: str, output_path: str, sanitize: SanitizeFn) -> dict:
     occurrences of a word on the page.
     """
     import fitz  # PyMuPDF
-    import difflib
+    from analyzer_engine import analyze_text
+    from context_rules import apply_context_rules
 
     doc = fitz.open(input_path)
     pii_count = 0
     original_parts = []
     sanitized_parts = []
+
+    # Lazy-import pipeline to get the shared analyzer instance
+    from app import get_pipeline
+    pipeline = get_pipeline()
 
     for page in doc:
         page_text = page.get_text("text")
@@ -150,16 +155,26 @@ def handle_pdf(input_path: str, output_path: str, sanitize: SanitizeFn) -> dict:
         orig_words = [w[4] for w in word_tuples]
         reconstructed = " ".join(orig_words)
 
-        # Sanitize the reconstructed text so word indices stay aligned
-        san_text = sanitize(reconstructed)
-        san_words = san_text.split()
+        # Use Presidio to get exact character offsets of PII in the
+        # reconstructed string, then map those offsets to word indices.
+        results = analyze_text(pipeline.analyzer, reconstructed)
+        results = apply_context_rules(reconstructed, results)
 
-        # Find which word POSITIONS are PII via difflib
-        matcher = difflib.SequenceMatcher(None, orig_words, san_words, autojunk=False)
+        # Build a char-offset → word-index map
+        word_char_starts = []  # char offset where each word begins
+        offset = 0
+        for word in orig_words:
+            word_char_starts.append(offset)
+            offset += len(word) + 1  # +1 for the space separator
+
         pii_indices = set()
-        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-            if tag in ("replace", "delete"):
-                pii_indices.update(range(i1, i2))
+        for entity in results:
+            # Find all word indices whose character range overlaps this entity
+            for i, w_start in enumerate(word_char_starts):
+                w_end = w_start + len(orig_words[i])
+                # Overlap check: word [w_start, w_end) vs entity [entity.start, entity.end)
+                if w_start < entity.end and w_end > entity.start:
+                    pii_indices.add(i)
 
         pii_count += len(pii_indices)
 
